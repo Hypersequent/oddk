@@ -2,6 +2,7 @@ package offsite
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
@@ -30,7 +31,7 @@ func (s *OffsiteStore) GetActive() (*OffsiteSettings, error) {
 		&settings.Endpoint, &settings.Region, &settings.AccessKeyID,
 		&settings.SecretAccessKey, &settings.BucketPath, &settings.EC2IAMRole, &settings.CreatedAt, &settings.UpdatedAt)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -51,7 +52,7 @@ func (s *OffsiteStore) GetByID(id int64) (*OffsiteSettings, error) {
 		&settings.Endpoint, &settings.Region, &settings.AccessKeyID,
 		&settings.SecretAccessKey, &settings.BucketPath, &settings.EC2IAMRole, &settings.CreatedAt, &settings.UpdatedAt)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("offsite settings with id %d not found", id)
 	}
 	if err != nil {
@@ -106,7 +107,7 @@ func (s *OffsiteStore) Remove() error {
 
 	var activeID int64
 	err = tx.Get(&activeID, `SELECT id FROM offsite_settings WHERE active = 1`)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("no active offsite configuration found")
 	}
 	if err != nil {
@@ -231,7 +232,7 @@ func (s *OffsiteStore) GetPreviousSecretKey() (string, error) {
 		ORDER BY id DESC
 		LIMIT 1
 	`)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", fmt.Errorf("no active configuration with valid secret key found")
 	}
 	if err != nil {

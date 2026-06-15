@@ -2,6 +2,7 @@ package health
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -105,7 +106,7 @@ func (s *HealthStore) GetLatestHealthRecord() (*HealthRecord, error) {
 		&record.FailDetails,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil // No records yet
 		}
 		return nil, fmt.Errorf("get latest health record: %w", err)

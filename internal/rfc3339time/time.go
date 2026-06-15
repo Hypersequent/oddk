@@ -7,7 +7,12 @@ import (
 	"time"
 )
 
-// Time wraps time.Time to handle RFC3339 serialization for SQLite TEXT columns
+// Time wraps time.Time to handle RFC3339 serialization for SQLite TEXT columns.
+//
+// Scan() (sql.Scanner) mutates, so it must be a pointer receiver. The mixed
+// receivers are required by the two interfaces, not an oversight.
+//
+//nolint:recvcheck // Value() (driver.Valuer) reads, so a value receiver is fine;
 type Time struct{ time.Time }
 
 // Fixed 9-digit fractional seconds so TEXT sorts correctly lexicographically

@@ -16,6 +16,10 @@ linters:
     - intrange
     - gosec
     - modernize
+    - errorlint # flag err==target / %v-on-error: break on wrapped errors
+    - unparam   # unused or always-same function parameters
+    - prealloc  # slices grown via append that could be preallocated
+    - recvcheck # a type's methods should not mix value/pointer receivers
   exclusions:
     rules:
       # gosec credential/permission checks are expected noise in test and e2e
@@ -24,6 +28,16 @@ linters:
       - path: (_test\.go|^e2e/)
         linters:
           - gosec
+      # e2e is test scaffolding, not shipped code:
+      #  - unparam: helpers legitimately take params that always receive the
+      #    same constant (fixed instance names, force=true, …) for readability.
+      #  - errorlint: assertion messages use fmt.Errorf("…got: %v", err); they
+      #    are not error-wrapping chains, so %w-vs-%v is irrelevant there.
+      # Production code is still checked by both.
+      - path: ^e2e/
+        linters:
+          - unparam
+          - errorlint
       # operations has internal tests that exercise unexported helpers
       # (quotePostgresLiteral, buildCreateDatabaseSQL, …), so they must live in
       # package operations and testpackage can't apply.

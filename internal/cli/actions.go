@@ -10,14 +10,17 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/urfave/cli/v3"
 
 	"github.com/hypersequent/oddk/internal/daemon"
 	"github.com/hypersequent/oddk/internal/store"
+	"github.com/hypersequent/oddk/internal/store/auth"
 	"github.com/hypersequent/oddk/internal/store/parameters"
 	"github.com/hypersequent/oddk/internal/util"
 )
@@ -481,6 +484,7 @@ func ensureDockerReachable(ctx context.Context) (string, error) {
 
 	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	//nolint:gosec // dockerPath comes from exec.LookPath("docker"), not user input
 	out, err := exec.CommandContext(probeCtx, dockerPath, "version", "--format", "{{.Server.Version}}").CombinedOutput()
 	if err != nil {
 		detail := strings.TrimSpace(string(out))
@@ -490,7 +494,7 @@ func ensureDockerReachable(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("cannot reach Docker as the current user (%w):%s\n\n"+
 			"`oddk instance psql` needs Docker access. Either add your user to the docker group:\n"+
 			"  sudo usermod -aG docker $USER   # then log out and back in\n"+
-			"or re-run the command with sudo.", err, detail)
+			"or re-run the command with sudo", err, detail)
 	}
 	return dockerPath, nil
 }
@@ -555,8 +559,9 @@ func (c *Client) psqlAction(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("instance %s is not running (status: %s)", name, instance.Status)
 	}
 
-	// Construct Docker command
-	dockerArgs := []string{
+	// Construct Docker command (preallocated: 17 fixed args + user psql args)
+	dockerArgs := make([]string, 0, 17+len(psqlArgs))
+	dockerArgs = append(dockerArgs,
 		"run",
 		"--rm",
 		"-it",
@@ -568,7 +573,7 @@ func (c *Client) psqlAction(ctx context.Context, cmd *cli.Command) error {
 		"-p", fmt.Sprintf("%d", instance.Port),
 		"-U", "postgres",
 		"-d", "postgres",
-	}
+	)
 
 	// Add any additional psql arguments passed by the user
 	dockerArgs = append(dockerArgs, psqlArgs...)
@@ -938,51 +943,92 @@ func runDaemon(port int, dataDir, backupDir string, allowRemote bool) error {
 		return fmt.Errorf("failed to create server: %w", err)
 	}
 
-	// Write client config if a new token was created
-	if server.HasNewlyCreatedToken() {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("failed to get current directory: %w", err)
-		}
-		if err := server.WriteClientConfig(cwd); err != nil {
-			return fmt.Errorf("failed to write client config: %w", err)
-		}
-	}
-
+	// Note: the daemon no longer drops a .oddk-cli.json in its working dir.
+	// Mint and install a CLI token explicitly with `oddk auth mint` instead.
 	return server.Start()
 }
 
-// cliAuthAction mints a fresh CLI auth token and emits shell commands that
-// install ~/.config/oddk/cli.json for the user running that shell. It is meant
-// to be run as the oddk service user (which owns the database) and eval'd by an
-// admin, e.g.:  eval "$(sudo -u oddk /usr/local/bin/oddk cli-auth)"
-//
-// Tokens are stored hashed, so an existing token's plaintext can't be reissued;
-// each invocation mints a new (independently valid) token.
-func cliAuthAction(_ context.Context, cmd *cli.Command) error {
-	port := cmd.Int("port")
+// openAuthStore resolves the data dir (the same way the daemon does for the
+// oddk user, using the passwd home rather than $HOME, which sudo may leave as
+// the caller's) and opens oddk.db for the narrow purpose of managing auth
+// tokens. The caller must Close the returned db. All `auth` subcommands run
+// locally against the database, not the daemon HTTP API.
+func openAuthStore(cmd *cli.Command) (*auth.AuthStore, *sqlx.DB, error) {
 	dataDir := cmd.String("data-dir")
-
-	// Resolve the data dir the same way the daemon does for the oddk user,
-	// using the passwd home (not $HOME, which sudo may leave as the caller's).
 	if dataDir == "" {
 		u, err := user.Current()
 		if err != nil {
-			return fmt.Errorf("determine current user: %w", err)
+			return nil, nil, fmt.Errorf("determine current user: %w", err)
 		}
 		if u.Username == "oddk" {
 			dataDir = filepath.Join(u.HomeDir, "data")
 		} else {
-			return fmt.Errorf("--data-dir is required when not running as the oddk user")
+			return nil, nil, fmt.Errorf("--data-dir is required when not running as the oddk user")
 		}
+	}
+
+	// Safeguard: the auth commands open SQLite directly and create WAL/SHM
+	// sidecar files in the data dir, so the invoking user must own it. The usual
+	// mistake is forgetting `sudo -u oddk`, which would otherwise surface as a
+	// confusing low-level permission/IO error (or leave daemon-unreadable files
+	// behind). Fail clearly and tell them which user to become.
+	if err := ensureDataDirOwnedByCurrentUser(dataDir); err != nil {
+		return nil, nil, err
 	}
 
 	dbPath := filepath.Join(dataDir, "oddk.db")
 	if _, err := os.Stat(dbPath); err != nil {
-		return fmt.Errorf("database not found at %s - is ODDK installed and has the daemon started? (%w)", dbPath, err)
+		return nil, nil, fmt.Errorf("database not found at %s - is ODDK installed and has the daemon started? (%w)", dbPath, err)
 	}
 
-	authStore, db, err := store.OpenAuthOnly(dbPath)
+	return store.OpenAuthOnly(dbPath)
+}
+
+// ensureDataDirOwnedByCurrentUser fails if the data dir is owned by a different
+// user than the one running the command - almost always a forgotten
+// `sudo -u oddk`. A missing data dir is left to the db-existence check below,
+// and non-unix stat is skipped (can't determine ownership).
+func ensureDataDirOwnedByCurrentUser(dataDir string) error {
+	info, err := os.Stat(dataDir)
+	if err != nil {
+		return nil // missing/unreadable: reported by the db-existence check
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil
+	}
+	ownerUID := int(stat.Uid)
+	if ownerUID == os.Getuid() {
+		return nil
+	}
+	owner := uidName(ownerUID)
+	return fmt.Errorf("data directory %s is owned by %s but you are running as %s; run the auth commands as that user, e.g. sudo -u %s oddk auth mint",
+		dataDir, owner, uidName(os.Getuid()), owner)
+}
+
+// uidName resolves a numeric uid to a username, falling back to the number.
+func uidName(uid int) string {
+	if u, err := user.LookupId(strconv.Itoa(uid)); err == nil {
+		return u.Username
+	}
+	return strconv.Itoa(uid)
+}
+
+// authMintAction mints a fresh CLI auth token. By default it emits shell
+// commands that install ~/.config/oddk/cli.json for the user running that
+// shell, meant to be run as the oddk service user and eval'd by an admin:
+//
+//	eval "$(sudo -u oddk /usr/local/bin/oddk auth mint)"
+//
+// With --json it just prints the CLI config JSON to stdout.
+//
+// Tokens are stored hashed, so an existing token's plaintext can't be reissued;
+// each invocation mints a new (independently valid) token.
+func authMintAction(_ context.Context, cmd *cli.Command) error {
+	port := cmd.Int("port")
+	asJSON := cmd.Bool("json")
+
+	authStore, db, err := openAuthStore(cmd)
 	if err != nil {
 		return err
 	}
@@ -1001,8 +1047,13 @@ func cliAuthAction(_ context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
+	if asJSON {
+		_, _ = fmt.Fprintf(os.Stdout, "%s\n", configJSON)
+		return nil
+	}
+
 	// Emit shell that writes the config in the *caller's* shell ($HOME, perms).
-	// Designed for `eval "$(sudo -u oddk /usr/local/bin/oddk cli-auth)"`.
+	// Designed for `eval "$(sudo -u oddk /usr/local/bin/oddk auth mint)"`.
 	_, _ = fmt.Fprintf(os.Stdout,
 		"mkdir -p \"$HOME/.config/oddk\"\n"+
 			"umask 077\n"+
@@ -1017,7 +1068,58 @@ func cliAuthAction(_ context.Context, cmd *cli.Command) error {
 	if fi, err := os.Stdout.Stat(); err == nil && fi.Mode()&os.ModeCharDevice != 0 {
 		_, _ = fmt.Fprintln(os.Stderr,
 			"\n# Minted a new CLI token. Apply it for the current user with:\n"+
-				"#   eval \"$(sudo -u oddk /usr/local/bin/oddk cli-auth)\"")
+				"#   eval \"$(sudo -u oddk /usr/local/bin/oddk auth mint)\"\n"+
+				"# (or use --json to print the config)")
 	}
+	return nil
+}
+
+// authListAction lists the metadata of all stored auth tokens.
+func authListAction(_ context.Context, cmd *cli.Command) error {
+	authStore, db, err := openAuthStore(cmd)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	tokens, err := authStore.ListTokens()
+	if err != nil {
+		return err
+	}
+
+	if len(tokens) == 0 {
+		_, _ = fmt.Fprintln(os.Stdout, "No auth tokens.")
+		return nil
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "%-6s  %-10s  %s\n", "ID", "PREFIX", "CREATED")
+	for _, t := range tokens {
+		_, _ = fmt.Fprintf(os.Stdout, "%-6d  %-10s  %s\n", t.ID, t.TokenPrefix, t.CreatedAt)
+	}
+	return nil
+}
+
+// authDeleteAction revokes a single auth token by id.
+func authDeleteAction(_ context.Context, cmd *cli.Command) error {
+	idArg := cmd.Args().First()
+	if idArg == "" {
+		return fmt.Errorf("token id is required: oddk auth delete <id>")
+	}
+	id, err := strconv.ParseInt(idArg, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid token id %q: must be an integer", idArg)
+	}
+
+	authStore, db, err := openAuthStore(cmd)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	if err := authStore.DeleteToken(id); err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "Deleted auth token %d.\n", id)
 	return nil
 }

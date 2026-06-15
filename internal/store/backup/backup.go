@@ -2,6 +2,7 @@ package backup
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -185,7 +186,7 @@ func (s *BackupStore) GetBackupByID(backupID int) (*BackupRecord, error) {
 	query := `SELECT * FROM backup_history WHERE id = ?`
 	err := s.db.Get(&backup, query, backupID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("backup not found: %d", backupID)
 		}
 		return nil, fmt.Errorf("get backup: %w", err)

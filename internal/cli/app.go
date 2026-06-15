@@ -25,7 +25,7 @@ func BuildApp(client *Client) *cli.Command {
 		Version: buildInfo.String(),
 		Commands: []*cli.Command{
 			daemonCommand(),
-			cliAuthCommand(),
+			authCommand(),
 			pullCommand(client),
 			createCommand(client),
 			listCommand(client),
@@ -43,6 +43,11 @@ func daemonCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "daemon",
 		Usage: "Run the ODDK daemon",
+		// Hidden from help: end users install via the script and run the daemon
+		// under the dedicated service user via systemd. A user running `oddk
+		// daemon` themselves just collides with that daemon (port busy) and
+		// leaves stray data behind. Still runnable for the service/dev.
+		Hidden: true,
 		Flags: []cli.Flag{
 			&cli.IntFlag{
 				Name:  "port",
@@ -66,24 +71,57 @@ func daemonCommand() *cli.Command {
 	}
 }
 
-func cliAuthCommand() *cli.Command {
+// dataDirFlag is shared by all `auth` subcommands: they talk to oddk.db
+// directly (not the daemon HTTP API), so they need to locate the data dir.
+func dataDirFlag() cli.Flag {
+	return &cli.StringFlag{
+		Name:  "data-dir",
+		Usage: "Data directory holding oddk.db (defaults to the oddk user's data dir)",
+	}
+}
+
+func authCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "cli-auth",
-		Usage: "Mint a CLI auth token and emit shell to install ~/.config/oddk/cli.json",
-		Description: "Run as the oddk service user and eval the output to configure the CLI " +
-			"for the current user:\n   eval \"$(sudo -u oddk /usr/local/bin/oddk cli-auth)\"",
-		Flags: []cli.Flag{
-			&cli.IntFlag{
-				Name:  "port",
-				Value: 5442,
-				Usage: "Daemon port to record in the CLI config",
+		Name:  "auth",
+		Usage: "Manage CLI auth tokens (run as the oddk service user)",
+		Description: "These subcommands read oddk.db directly, so run them as the oddk " +
+			"service user, e.g.:\n   eval \"$(sudo -u oddk /usr/local/bin/oddk auth mint)\"",
+		Commands: []*cli.Command{
+			{
+				Name:  "mint",
+				Usage: "Mint a new CLI auth token",
+				Description: "Mints a fresh token and emits shell to install it into the " +
+					"current user's ~/.config/oddk/cli.json:\n" +
+					"   eval \"$(sudo -u oddk /usr/local/bin/oddk auth mint)\"\n" +
+					"Use --json to print the config as JSON instead of shell.",
+				Flags: []cli.Flag{
+					&cli.IntFlag{
+						Name:  "port",
+						Value: 5442,
+						Usage: "Daemon port to record in the CLI config",
+					},
+					&cli.BoolFlag{
+						Name:  "json",
+						Usage: "Print the CLI config as JSON instead of eval-able shell",
+					},
+					dataDirFlag(),
+				},
+				Action: authMintAction,
 			},
-			&cli.StringFlag{
-				Name:  "data-dir",
-				Usage: "Data directory holding oddk.db (defaults to the oddk user's data dir)",
+			{
+				Name:   "list",
+				Usage:  "List stored auth tokens (id, prefix, created)",
+				Flags:  []cli.Flag{dataDirFlag()},
+				Action: authListAction,
+			},
+			{
+				Name:      "delete",
+				Usage:     "Revoke an auth token by id",
+				ArgsUsage: "<id>",
+				Flags:     []cli.Flag{dataDirFlag()},
+				Action:    authDeleteAction,
 			},
 		},
-		Action: cliAuthAction,
 	}
 }
 

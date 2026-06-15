@@ -3,6 +3,7 @@ package notifications
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
@@ -53,7 +54,7 @@ func (s *NotificationStore) Get(name string) (*Notification, error) {
 	query := `SELECT name, type, config, created_at, updated_at FROM notifications WHERE name = ?`
 	err := s.db.QueryRow(query, name).Scan(&n.Name, &n.Type, &configStr, &n.CreatedAt, &n.UpdatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("notification %s not found", name)
 		}
 		return nil, fmt.Errorf("failed to get notification: %w", err)

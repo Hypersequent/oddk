@@ -67,14 +67,30 @@ func setupTestHarness(testName string, kvMap map[string]string, runFakeS3 bool) 
 		}
 	}
 
-	// Write client config to temp dir (should always create new token with fresh temp dir)
-	if err := server.WriteClientConfig(tempDir); err != nil {
+	// The daemon no longer mints tokens itself; mint one explicitly (the
+	// programmatic equivalent of `oddk auth mint`) and write the CLI config the
+	// command-under-test will read via ODDK_CLI_CONFIG below.
+	authToken, err := server.MintToken()
+	if err != nil {
 		_ = os.RemoveAll(tempDir)
-		panic(fmt.Sprintf("Failed to write client config: %v", err))
+		panic(fmt.Sprintf("Failed to mint auth token: %v", err))
+	}
+	configPath := filepath.Join(tempDir, ".oddk-cli.json")
+	cliConfig, err := json.MarshalIndent(map[string]string{
+		"daemonUrl": fmt.Sprintf("http://localhost:%d", testPort),
+		"authToken": authToken,
+	}, "", "  ")
+	if err != nil {
+		_ = os.RemoveAll(tempDir)
+		panic(fmt.Sprintf("Failed to marshal CLI config: %v", err))
+	}
+	if err := os.WriteFile(configPath, cliConfig, 0o600); err != nil {
+		_ = os.RemoveAll(tempDir)
+		panic(fmt.Sprintf("Failed to write CLI config: %v", err))
 	}
 
 	go func() {
-		if err := server.Start(); err != nil && err != http.ErrServerClosed {
+		if err := server.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			fmt.Printf("Server error: %v\n", err)
 		}
 	}()
@@ -85,20 +101,6 @@ func setupTestHarness(testName string, kvMap map[string]string, runFakeS3 bool) 
 		panic(fmt.Sprintf("Server didn't start in time: %v", err))
 	}
 
-	// Read the generated auth token from temp directory
-	tokenFile := filepath.Join(tempDir, ".oddk-cli.json")
-	tokenData, err := os.ReadFile(tokenFile) // #nosec G304 - tokenFile is controlled test path
-	if err != nil {
-		panic(fmt.Sprintf("Failed to read auth token from %s: %v", tokenFile, err))
-	}
-
-	var config struct {
-		AuthToken string `json:"authToken"`
-	}
-	if err := json.Unmarshal(tokenData, &config); err != nil {
-		panic(fmt.Sprintf("Failed to parse auth token: %v", err))
-	}
-
 	dockerClient, err := client.NewClientWithOpts(
 		client.FromEnv,
 		client.WithAPIVersionNegotiation(),
@@ -107,7 +109,6 @@ func setupTestHarness(testName string, kvMap map[string]string, runFakeS3 bool) 
 		panic(fmt.Sprintf("Failed to create Docker client: %v", err))
 	}
 
-	configPath := filepath.Join(tempDir, ".oddk-cli.json")
 	env := []string{
 		fmt.Sprintf("ODDK_CLI_CONFIG=%s", configPath),
 		fmt.Sprintf("HOME=%s", tempDir), // Prevent reading from real home directory
@@ -117,7 +118,7 @@ func setupTestHarness(testName string, kvMap map[string]string, runFakeS3 bool) 
 		testName:   testName,
 		dataDir:    tempDir,
 		server:     server,
-		authToken:  config.AuthToken,
+		authToken:  authToken,
 		baseURL:    fmt.Sprintf("http://localhost:%d", testPort),
 		docker:     dockerClient,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
@@ -182,7 +183,7 @@ func (h *TestHarness) restartDaemon() error {
 	h.server = server
 
 	go func() {
-		if err := server.Start(); err != nil && err != http.ErrServerClosed {
+		if err := server.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			fmt.Printf("Server error after restart: %v\n", err)
 		}
 	}()

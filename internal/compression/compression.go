@@ -94,8 +94,8 @@ func (c *Compressor) ExtractTarZstd(ctx context.Context, archivePath, destDir st
 		return fmt.Errorf("unsupported format for extraction")
 	}
 
-	err = extractor.Extract(ctx, archiveFile, func(ctx context.Context, f archives.FileInfo) error {
-		return c.handleFile(ctx, f, destDir)
+	err = extractor.Extract(ctx, archiveFile, func(_ context.Context, f archives.FileInfo) error {
+		return c.handleFile(f, destDir)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to extract archive: %w", err)
@@ -105,7 +105,7 @@ func (c *Compressor) ExtractTarZstd(ctx context.Context, archivePath, destDir st
 }
 
 // handleFile processes individual files during extraction
-func (c *Compressor) handleFile(ctx context.Context, f archives.FileInfo, destDir string) error {
+func (c *Compressor) handleFile(f archives.FileInfo, destDir string) error {
 	name := f.NameInArchive
 	if name == "" {
 		return nil

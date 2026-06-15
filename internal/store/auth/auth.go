@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -97,7 +98,7 @@ func (s *AuthStore) ValidateToken(token string) (bool, error) {
 		SELECT * FROM auth_tokens WHERE id = ?
 	`, tokenID)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil // Token not found
 	}
 	if err != nil {
@@ -141,17 +142,49 @@ func (s *AuthStore) ValidateToken(token string) (bool, error) {
 	return result == 0, nil
 }
 
-func (s *AuthStore) GetOrCreateToken() (string, error) {
-	var count int
-	err := s.db.Get(&count, "SELECT COUNT(*) FROM auth_tokens")
+// TokenInfo is the non-secret metadata about a stored auth token. The token
+// plaintext is never recoverable (only a salted Argon2 hash is stored), so
+// listing exposes just the id, short prefix, and creation time.
+type TokenInfo struct {
+	ID          int64  `db:"id"`
+	TokenPrefix string `db:"token_prefix"`
+	CreatedAt   string `db:"created_at"`
+}
+
+// ListTokens returns metadata for all stored auth tokens, newest first.
+func (s *AuthStore) ListTokens() ([]TokenInfo, error) {
+	var tokens []TokenInfo
+	err := s.db.Select(&tokens, `
+		SELECT id, token_prefix, created_at FROM auth_tokens ORDER BY id DESC
+	`)
 	if err != nil {
-		return "", fmt.Errorf("count auth tokens: %w", err)
+		return nil, fmt.Errorf("list auth tokens: %w", err)
 	}
+	return tokens, nil
+}
 
-	if count == 0 {
-		return s.CreateToken()
+// DeleteToken removes the auth token with the given id, revoking it. It returns
+// an error if no token with that id exists.
+func (s *AuthStore) DeleteToken(id int64) error {
+	result, err := s.db.Exec(`DELETE FROM auth_tokens WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("delete auth token: %w", err)
 	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete auth token: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("no auth token with id %d", id)
+	}
+	return nil
+}
 
-	// Token already exists, cannot retrieve plaintext
-	return "", fmt.Errorf("token already exists, cannot retrieve plaintext")
+// CountTokens returns the number of stored auth tokens.
+func (s *AuthStore) CountTokens() (int, error) {
+	var count int
+	if err := s.db.Get(&count, "SELECT COUNT(*) FROM auth_tokens"); err != nil {
+		return 0, fmt.Errorf("count auth tokens: %w", err)
+	}
+	return count, nil
 }

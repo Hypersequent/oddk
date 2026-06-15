@@ -107,7 +107,7 @@ func testBackupRemovalOperations(h *TestHarness) error {
 		return fmt.Errorf("expected error when removing non-existent backup")
 	}
 	if !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "backup not found") {
-		return fmt.Errorf("expected 'not found' error, got: %v", err)
+		return fmt.Errorf("expected 'not found' error, got: %w", err)
 	}
 
 	// Test 6: Try to remove backup from wrong instance

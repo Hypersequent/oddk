@@ -2,6 +2,7 @@ package kvstore
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -93,7 +94,7 @@ func (kv *KVStore) dbGet(keyStr string) (string, error) {
 	var value string
 	err := kv.db.Get(&value, query, keyStr)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return "", operr.NotFoundf("key not found: %s", keyStr)
 		}
 		return "", fmt.Errorf("get kvstore value: %w", err)

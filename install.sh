@@ -331,21 +331,24 @@ print_msg "$GREEN" "Service started successfully"
 echo
 
 # --- Bootstrap the admin's CLI config ---
-# On first start the daemon writes the bearer token + URL to .oddk-cli.json in
-# its working directory. Copy it into the invoking admin's ~/.config/oddk/cli.json
-# so they can run `oddk ...` directly - no sudo, no becoming the oddk user.
-TOKEN_FILE="$FHS_HOME/.oddk-cli.json"
+# Mint a fresh CLI token as the oddk service user and install it into the
+# invoking admin's ~/.config/oddk/cli.json so they can run `oddk ...` directly -
+# no sudo, no becoming the oddk user. (The daemon does not write any token file
+# itself; `oddk auth mint` is the single way to provision a CLI token.)
 CLI_CONFIGURED=""
 ADMIN_USER="${SUDO_USER:-}"
-if [ -n "$ADMIN_USER" ] && [ "$ADMIN_USER" != "root" ] && $SUDO test -f "$TOKEN_FILE"; then
+if [ -n "$ADMIN_USER" ] && [ "$ADMIN_USER" != "root" ]; then
     ADMIN_HOME=$(getent passwd "$ADMIN_USER" | cut -d: -f6)
     if [ -n "$ADMIN_HOME" ] && [ -d "$ADMIN_HOME" ]; then
-        $SUDO mkdir -p "$ADMIN_HOME/.config/oddk"
-        $SUDO cp "$TOKEN_FILE" "$ADMIN_HOME/.config/oddk/cli.json"
-        $SUDO chown -R "$ADMIN_USER:" "$ADMIN_HOME/.config/oddk"
-        $SUDO chmod 600 "$ADMIN_HOME/.config/oddk/cli.json"
-        CLI_CONFIGURED="$ADMIN_USER"
-        print_msg "$GREEN" "CLI configured for user '$ADMIN_USER' (~/.config/oddk/cli.json)"
+        CLI_JSON=$($SUDO -u "$USER_NAME" "$FHS_BINARY" auth mint --json 2>/dev/null) || CLI_JSON=""
+        if [ -n "$CLI_JSON" ]; then
+            $SUDO mkdir -p "$ADMIN_HOME/.config/oddk"
+            printf '%s\n' "$CLI_JSON" | $SUDO tee "$ADMIN_HOME/.config/oddk/cli.json" >/dev/null
+            $SUDO chown -R "$ADMIN_USER:" "$ADMIN_HOME/.config/oddk"
+            $SUDO chmod 600 "$ADMIN_HOME/.config/oddk/cli.json"
+            CLI_CONFIGURED="$ADMIN_USER"
+            print_msg "$GREEN" "CLI configured for user '$ADMIN_USER' (~/.config/oddk/cli.json)"
+        fi
     fi
 fi
 echo
@@ -356,7 +359,7 @@ print_msg "$GREEN" "ODDK installation completed: $NEW_VERSION"
 echo
 if [ -z "$CLI_CONFIGURED" ]; then
     print_msg "$YELLOW" "To use the CLI as your own user, mint a token and install the config:"
-    echo "  eval \"\$(sudo -u oddk /usr/local/bin/oddk cli-auth)\""
+    echo "  eval \"\$(sudo -u oddk /usr/local/bin/oddk auth mint)\""
     echo
 fi
 # Some minimal distros omit /usr/local/bin from the default PATH. Warn so the
@@ -368,7 +371,7 @@ case ":$PATH:" in
 esac
 
 print_msg "$YELLOW" "Useful commands:"
-echo "  eval \"\$(sudo -u oddk /usr/local/bin/oddk cli-auth)\"  - Configure CLI for another user"
+echo "  eval \"\$(sudo -u oddk /usr/local/bin/oddk auth mint)\"  - Configure CLI for another user"
 echo "  oddk list                    - List instances"
 echo "  oddk pull --version 17       - Pull PostgreSQL 17"
 echo "  sudo systemctl status oddk   - Check service status"

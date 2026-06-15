@@ -25,13 +25,13 @@ type Client struct {
 }
 
 func Run(args, env []string, out io.Writer) error {
-	// daemon and cli-auth run locally - they talk to the database/host directly,
-	// not the daemon's HTTP API, so they need no client or auth token. Build the
-	// full app with an empty client and skip NewClient entirely. This matters for
-	// cli-auth in particular: its stdout is eval'd by the caller
-	// (eval "$(sudo -u oddk oddk cli-auth)"), so NewClient's "no token found"
-	// message must never reach stdout and corrupt the emitted shell.
-	if len(args) > 1 && (args[1] == "daemon" || args[1] == "cli-auth") {
+	// daemon and the auth subcommands run locally - they talk to the
+	// database/host directly, not the daemon's HTTP API, so they need no client
+	// or auth token. Build the full app with an empty client and skip NewClient
+	// entirely. This matters for `auth mint` in particular: its stdout is eval'd
+	// by the caller (eval "$(sudo -u oddk oddk auth mint)"), so NewClient's "no
+	// token found" message must never reach stdout and corrupt the emitted shell.
+	if len(args) > 1 && (args[1] == "daemon" || args[1] == "auth") {
 		app := BuildApp(&Client{out: out})
 		app.Writer = out
 		return app.Run(context.Background(), args)
@@ -100,11 +100,11 @@ func NewClient(env []string, out io.Writer) (*Client, error) {
 
 	if config.AuthToken == "" {
 		// Diagnostics go to stderr, never stdout - some commands' stdout is
-		// machine-consumed (e.g. cli-auth output is eval'd by the caller).
-		_, _ = fmt.Fprintln(os.Stderr, "No auth token found. Please run the daemon first and save the token to:")
-		_, _ = fmt.Fprintln(os.Stderr, "  - .oddk-cli.json (in current directory)")
-		_, _ = fmt.Fprintln(os.Stderr, "  - ~/.config/oddk/cli.json (in home directory)")
-		_, _ = fmt.Fprintln(os.Stderr, "\nExample config:")
+		// machine-consumed (e.g. `auth mint` output is eval'd by the caller).
+		_, _ = fmt.Fprintln(os.Stderr, "No auth token found. Mint one as the oddk service user:")
+		_, _ = fmt.Fprintln(os.Stderr, "  eval \"$(sudo -u oddk oddk auth mint)\"")
+		_, _ = fmt.Fprintln(os.Stderr, "\nThis installs ~/.config/oddk/cli.json. The CLI also reads")
+		_, _ = fmt.Fprintln(os.Stderr, ".oddk-cli.json in the current directory. Config format:")
 		_, _ = fmt.Fprintln(os.Stderr, `{
   "daemonUrl": "http://localhost:5442",
   "authToken": "YOUR_TOKEN_HERE"
@@ -131,6 +131,13 @@ func parseEnv(env []string) map[string]string {
 }
 
 func (c *Client) request(method, path string, body any) ([]byte, error) {
+	// Run() builds a config-less client when no auth token is found so that
+	// --help still works; any command that actually reaches the daemon must
+	// fail cleanly here instead of dereferencing a nil config.
+	if c.config == nil {
+		return nil, fmt.Errorf("auth token not configured (see ~/.config/oddk/cli.json)")
+	}
+
 	url := c.config.DaemonURL + path
 
 	var reqBody io.Reader

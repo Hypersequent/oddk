@@ -2,13 +2,11 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/hypersequent/oddk/internal/crypto"
@@ -20,19 +18,18 @@ import (
 )
 
 type Server struct {
-	store             *store.Store
-	docker            *docker.Client
-	newlyCreatedToken string // Non-empty if token was just created
-	port              int
-	allowRemote       bool // If false, bind to loopback only
-	masterKey         []byte
-	executor          *operations.Executor
-	opDeps            *operations.Dependencies
-	httpServer        *http.Server
-	backupDir         string
-	cronTracker       *CronTaskTracker
-	healthScheduler   *HealthScheduler
-	cancel            context.CancelFunc // Just keep cancel func to stop background processes
+	store           *store.Store
+	docker          *docker.Client
+	port            int
+	allowRemote     bool // If false, bind to loopback only
+	masterKey       []byte
+	executor        *operations.Executor
+	opDeps          *operations.Dependencies
+	httpServer      *http.Server
+	backupDir       string
+	cronTracker     *CronTaskTracker
+	healthScheduler *HealthScheduler
+	cancel          context.CancelFunc // Just keep cancel func to stop background processes
 }
 
 func NewServer(port int, dataDir, backupDir string, healthCheckIntervalSec int, allowRemote bool) (*Server, error) {
@@ -60,18 +57,13 @@ func NewServer(port int, dataDir, backupDir string, healthCheckIntervalSec int, 
 		return nil, fmt.Errorf("create store: %w", err)
 	}
 
-	token, err := store.Auth.GetOrCreateToken()
-	var newlyCreatedToken string
-	if err != nil {
-		if strings.Contains(err.Error(), "token already exists") {
-			log.Println("Auth token already exists. Use existing CLI config or regenerate token.")
-		} else {
-			return nil, fmt.Errorf("get or create auth token: %w", err)
-		}
-	} else {
-		// Token was just created
-		newlyCreatedToken = token
-		log.Printf("Generated new auth token: %s", token)
+	// The daemon never mints tokens itself - tokens are created explicitly with
+	// `oddk auth mint` (as the oddk user). Nudge the operator if none exist yet,
+	// so a fresh install isn't silently unreachable (every request would 401).
+	if n, err := store.Auth.CountTokens(); err != nil {
+		return nil, fmt.Errorf("count auth tokens: %w", err)
+	} else if n == 0 {
+		log.Println("No CLI auth tokens exist yet. Mint one with `oddk auth mint` (as the oddk user) before using the CLI.")
 	}
 
 	dockerClient, err := docker.NewClient()
@@ -109,17 +101,16 @@ func NewServer(port int, dataDir, backupDir string, healthCheckIntervalSec int, 
 	healthScheduler := NewHealthScheduler(healthChecker, healthCheckIntervalSec)
 
 	return &Server{
-		store:             store,
-		docker:            dockerClient,
-		newlyCreatedToken: newlyCreatedToken,
-		port:              port,
-		allowRemote:       allowRemote,
-		masterKey:         masterKey,
-		executor:          executor,
-		opDeps:            opDeps,
-		backupDir:         backupDir,
-		cronTracker:       cronTracker,
-		healthScheduler:   healthScheduler,
+		store:           store,
+		docker:          dockerClient,
+		port:            port,
+		allowRemote:     allowRemote,
+		masterKey:       masterKey,
+		executor:        executor,
+		opDeps:          opDeps,
+		backupDir:       backupDir,
+		cronTracker:     cronTracker,
+		healthScheduler: healthScheduler,
 	}, nil
 }
 
@@ -154,37 +145,11 @@ func (s *Server) Start() error {
 	return s.httpServer.ListenAndServe()
 }
 
-// HasNewlyCreatedToken returns true if a token was just created
-func (s *Server) HasNewlyCreatedToken() bool {
-	return s.newlyCreatedToken != ""
-}
-
-// WriteClientConfig writes the CLI configuration file to the specified directory
-func (s *Server) WriteClientConfig(configDir string) error {
-	if s.newlyCreatedToken == "" {
-		return fmt.Errorf("no newly created token to write")
-	}
-
-	config := map[string]string{
-		"daemonUrl": fmt.Sprintf("http://localhost:%d", s.port),
-		"authToken": s.newlyCreatedToken,
-	}
-
-	configData, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal config: %w", err)
-	}
-
-	configPath := filepath.Join(configDir, ".oddk-cli.json")
-	if err := os.WriteFile(configPath, configData, 0o600); err != nil {
-		return fmt.Errorf("write config file: %w", err)
-	}
-
-	log.Printf("Created %s with auth token", configPath)
-	log.Printf("Auth token for CLI: %s", s.newlyCreatedToken)
-	log.Println("Config saved to .oddk-cli.json (or save to ~/.config/oddk/cli.json)")
-
-	return nil
+// MintToken creates a new CLI auth token and returns its plaintext. The daemon
+// does not mint tokens on its own (see NewServer); this is the programmatic
+// equivalent of `oddk auth mint`, used by tests to obtain a usable token.
+func (s *Server) MintToken() (string, error) {
+	return s.store.Auth.CreateToken()
 }
 
 // Shutdown gracefully shuts down the server

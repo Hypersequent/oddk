@@ -48,6 +48,9 @@ oddk instance get-postgres-password app --conn
   it doesn't replace your client library or PgBouncer.
 - **Not a Kubernetes operator.** It talks to the Docker API directly. If you're
   on Kubernetes, use an operator instead.
+- **Not something you run *inside* Docker.** ODDK manages and monitors Docker
+  from the host — it is the control plane, not a workload. See
+  [Run ODDK on the host, not inside a container](#run-oddk-on-the-host-not-inside-a-container).
 - **Not for Windows or production macOS.** Linux is the deployment target;
   macOS is supported for development only.
 
@@ -75,6 +78,28 @@ script, ODDK is that, as one tool with one mental model.
 - **Linux** (x86_64 or arm64)
 - **Docker** (running)
 - **systemd** (for the installed service)
+
+---
+
+## Run ODDK on the host, not inside a container
+
+**ODDK is a Docker control plane. Run it on the host, directly on the machine
+that runs Docker — never inside a container.**
+
+The whole point of ODDK is to *manage and monitor* Docker: it creates and
+destroys PostgreSQL containers, attaches them to a host bridge network, reads
+host disk/CPU/memory for health checks, and writes state and backups to host
+paths. That is the opposite of being a containerized workload itself. Running
+ODDK inside Docker inverts the relationship and breaks its assumptions —
+host-level resource metrics, the `10.88.0.0/16` bridge and `10.88.0.1` gateway
+binding, data/backup paths, and the systemd service lifecycle all expect a host
+process. Bind-mounting the Docker socket into a container to work around this is
+exactly the inversion ODDK is designed to avoid, and is not supported.
+
+If what you actually want is to run a database *inside* Docker/Compose as part
+of a containerized stack, that is a different problem with different tools — use
+Docker Compose, a Kubernetes operator, or your platform's managed database
+instead. ODDK is for owning the host and treating Docker as the thing it drives.
 
 ---
 
@@ -117,11 +142,13 @@ The CLI authenticates to the daemon with a bearer token. To set up `oddk` for an
 additional user, mint a token and install their config in one step:
 
 ```bash
-eval "$(sudo -u oddk /usr/local/bin/oddk cli-auth)"
+eval "$(sudo -u oddk /usr/local/bin/oddk auth mint)"
 ```
 
 > The plaintext token is shown only when created and cannot be read back later.
-> If you lose it, mint a new one with `cli-auth`.
+> If you lose it, mint a new one with `oddk auth mint`. Use `oddk auth mint --json`
+> to print the config instead of eval-able shell, `oddk auth list` to see existing
+> tokens, and `oddk auth delete <id>` to revoke one.
 
 ---
 
@@ -334,8 +361,10 @@ Run the daemon directly during development:
 ./bin/oddk daemon [--port 5442] [--data-dir ./data] [--backup-dir ./backups]
 ```
 
-On first run the daemon generates an auth token and writes `.oddk-cli.json` in
-its working directory; the CLI also reads `~/.config/oddk/cli.json`.
+The daemon does not mint a token itself. Provision a CLI config with
+`oddk auth mint` (run as the data-dir owner — in dev that's just you, so no
+`sudo` needed; `--json` prints the config instead of eval-able shell). The CLI
+reads `.oddk-cli.json` in the current directory or `~/.config/oddk/cli.json`.
 
 **Toolchain:** Go 1.26+, Docker. Linux (primary) or macOS (development).
 

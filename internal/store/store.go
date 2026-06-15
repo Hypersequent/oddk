@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -83,7 +84,7 @@ func NewStore(dbPath, dataDir string) (*Store, error) {
 }
 
 // OpenAuthOnly opens an EXISTING oddk database for the narrow purpose of
-// minting a CLI auth token from a separate process (the `cli-auth` command).
+// managing CLI auth tokens from a separate process (the `oddk auth` commands).
 // Unlike NewStore it runs no migrations and no startup writes - those belong to
 // the daemon and would race (and MustExec-panic) against a running daemon. A
 // busy_timeout lets the single token INSERT wait out the daemon's writer lock
@@ -146,7 +147,7 @@ func (s *Store) migrateDB() error {
 func (s *Store) runSingleMigration(name string, fn func(sqx *sqlx.DB) error) error {
 	var migratedAt string
 	err := s.Sqlx.Get(&migratedAt, "SELECT migrated_at FROM app_migrations WHERE name = ?", name)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("checking migration status: %w", err)
 	}
 	if migratedAt != "" {

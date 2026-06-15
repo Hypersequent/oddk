@@ -152,7 +152,7 @@ func testBackupDownloadFromS3(h *TestHarness) error {
 		return fmt.Errorf("download with invalid backup ID should fail, but succeeded with output: %q", output)
 	}
 	if !strings.Contains(err.Error(), "backup not found") {
-		return fmt.Errorf("expected error for invalid backup ID to contain 'backup not found', got: %v", err)
+		return fmt.Errorf("expected error for invalid backup ID to contain 'backup not found', got: %w", err)
 	}
 
 	log.Println("Step 11: Testing download with wrong instance name")
@@ -162,7 +162,7 @@ func testBackupDownloadFromS3(h *TestHarness) error {
 	}
 	// Should fail with either "instance not found" or "backup does not belong"
 	if !strings.Contains(err.Error(), "does not belong") && !strings.Contains(err.Error(), "instance not found") {
-		return fmt.Errorf("expected error for wrong instance to contain 'does not belong' or 'instance not found', got: %v", err)
+		return fmt.Errorf("expected error for wrong instance to contain 'does not belong' or 'instance not found', got: %w", err)
 	}
 
 	log.Println("Step 12: Downloading backup from S3")
@@ -195,7 +195,7 @@ func testBackupDownloadFromS3(h *TestHarness) error {
 		return fmt.Errorf("re-download should fail when local copy exists, but succeeded with output: %q", output)
 	}
 	if !strings.Contains(err.Error(), "already has a local copy") {
-		return fmt.Errorf("expected re-download error to contain 'already has a local copy', got: %v", err)
+		return fmt.Errorf("expected re-download error to contain 'already has a local copy', got: %w", err)
 	}
 
 	log.Println("Step 15: Creating second backup without upload")
@@ -234,7 +234,7 @@ func testBackupDownloadFromS3(h *TestHarness) error {
 		return fmt.Errorf("download without remote copy should fail, but succeeded with output: %q", output)
 	}
 	if !strings.Contains(err.Error(), "no remote copy to download") {
-		return fmt.Errorf("expected error to contain 'no remote copy to download', got: %v", err)
+		return fmt.Errorf("expected error to contain 'no remote copy to download', got: %w", err)
 	}
 
 	log.Println("Step 17: Testing download after removing offsite config")
@@ -260,7 +260,7 @@ func testBackupDownloadFromS3(h *TestHarness) error {
 		return fmt.Errorf("download without offsite config should fail, but succeeded with output: %q", output)
 	}
 	if !strings.Contains(err.Error(), "offsite backup not configured") {
-		return fmt.Errorf("expected error to contain 'offsite backup not configured', got: %v", err)
+		return fmt.Errorf("expected error to contain 'offsite backup not configured', got: %w", err)
 	}
 
 	log.Println("Step 18: Cleaning up")

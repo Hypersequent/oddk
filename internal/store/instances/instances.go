@@ -2,6 +2,7 @@ package instances
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
@@ -39,7 +40,7 @@ func (s *InstanceStore) Create(name string, port int, version, password, contain
 func (s *InstanceStore) Get(name string) (*RDBMSInstance, error) {
 	var instance RDBMSInstance
 	err := s.db.Get(&instance, "SELECT * FROM rdbms_instances WHERE name = ?", name)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, operr.NotFoundf("instance not found: %s", name)
 	}
 	if err != nil {
@@ -138,7 +139,7 @@ func (s *InstanceStore) Delete(name string) error {
 func (s *InstanceStore) IsPortInUse(port int) (bool, string, error) {
 	var name sql.NullString
 	err := s.db.Get(&name, `SELECT name FROM rdbms_instances WHERE port = ?`, port)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return false, "", nil
 	}
 	if err != nil {

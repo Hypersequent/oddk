@@ -2,6 +2,7 @@ package cron
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -154,7 +155,7 @@ func (s *CronStore) GetLatestLogForInstance(instanceName string) (*CronLog, erro
 		LIMIT 1
 	`, instanceName)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

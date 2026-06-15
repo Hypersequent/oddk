@@ -71,7 +71,7 @@ func (op *CronTaskOp) Execute(ctx context.Context) error {
 	// retried backup can be pruned by local retention in the same pass.
 	op.runUploadRetries(ctx)
 
-	if err := op.runLocalCleanup(ctx); err != nil {
+	if err := op.runLocalCleanup(); err != nil {
 		op.updateCronLog("backup_cleanup_status", "fail")
 		op.updateCronLog("backup_cleanup_error", err.Error())
 		op.updateCronLog("backup_cleanup_finished_at", time.Now().UTC())
@@ -205,7 +205,7 @@ func (op *CronTaskOp) runUploadRetries(ctx context.Context) {
 	}
 }
 
-func (op *CronTaskOp) runLocalCleanup(ctx context.Context) error {
+func (op *CronTaskOp) runLocalCleanup() error {
 	plan, err := op.deps.Store.Cron.GetPlan(op.instanceName)
 	if err != nil {
 		// Plan might have been deleted - skip cleanup gracefully
