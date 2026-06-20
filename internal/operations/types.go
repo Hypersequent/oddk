@@ -50,6 +50,11 @@ type DeleteRDBMSParams struct {
 type PullImageParams struct {
 	Version string
 	Image   string
+	// IfMissing pulls only when the image is not already present locally;
+	// when present it is a no-op (no network). Used by create/switch to
+	// auto-provision an image without forcing a re-pull of a cached one.
+	// Standalone pull and update leave this false so a moving tag is refreshed.
+	IfMissing bool
 }
 
 // PullImageResult contains the result of pulling a Docker image
@@ -69,6 +74,13 @@ type SwitchRDBMSParams struct {
 // SwitchRDBMSResult contains the result of switching an instance's image
 type SwitchRDBMSResult struct {
 	Instance *instances.RDBMSInstance
+}
+
+// UpdateRDBMSParams contains parameters for updating an instance to the latest
+// image for its tag (re-pull + recreate if a newer patch is available).
+type UpdateRDBMSParams struct {
+	Name  string
+	Image string // empty = the instance's current image
 }
 
 // UpgradeRDBMSParams contains parameters for a major-version upgrade of an instance

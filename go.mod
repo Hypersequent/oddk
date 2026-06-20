@@ -19,6 +19,7 @@ require (
 	github.com/klauspost/compress v1.18.0
 	github.com/lib/pq v1.12.3
 	github.com/mholt/archives v0.1.3
+	github.com/moby/term v0.5.2
 	github.com/shirou/gopsutil/v4 v4.26.4
 	github.com/urfave/cli/v3 v3.4.1
 	golang.org/x/crypto v0.50.0
@@ -40,6 +41,7 @@ require (
 	github.com/Antonboom/errname v1.1.1 // indirect
 	github.com/Antonboom/nilnil v1.1.1 // indirect
 	github.com/Antonboom/testifylint v1.6.4 // indirect
+	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/ClickHouse/clickhouse-go-linter v1.2.0 // indirect
 	github.com/Djarvur/go-err113 v0.1.1 // indirect
@@ -212,7 +214,6 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
-	github.com/moby/term v0.5.2 // indirect
 	github.com/moricho/tparallel v0.3.2 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect

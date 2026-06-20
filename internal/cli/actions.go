@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -15,7 +16,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/jmoiron/sqlx"
+	"github.com/moby/term"
 	"github.com/urfave/cli/v3"
 
 	"github.com/hypersequent/oddk/internal/daemon"
@@ -39,27 +42,65 @@ func (c *Client) pullAction(ctx context.Context, cmd *cli.Command) error {
 		"image":   image,
 	}
 
-	resp, err := c.request("POST", "/api/pull", req)
+	return c.streamProgress(ctx, "POST", "/api/pull", req)
+}
+
+// streamProgress sends an authenticated request whose response is a stream of
+// newline-delimited Docker progress frames (jsonmessage) and renders them to
+// c.out — live progress bars on a terminal, plain status lines otherwise. body
+// may be nil for a request without a payload. It returns a non-nil error if the
+// operation failed (the error is carried inside the stream as an error frame,
+// or returned as a non-streaming 4xx/5xx before streaming begins).
+func (c *Client) streamProgress(ctx context.Context, method, path string, body any) error {
+	var payload io.Reader
+	if body != nil {
+		buf, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("encode request: %w", err)
+		}
+		payload = bytes.NewReader(buf)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, c.config.DaemonURL+path, payload)
 	if err != nil {
-		return err
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.config.AuthToken)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 
-	var result struct {
-		Version string   `json:"version"`
-		Tags    []string `json:"tags"`
-		Message string   `json:"message"`
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		var errResp struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(respBody, &errResp) == nil && errResp.Error != "" {
+			return fmt.Errorf("%s", errResp.Error)
+		}
+		return fmt.Errorf("request failed with status %d", resp.StatusCode)
 	}
 
-	if err := json.Unmarshal(resp, &result); err != nil {
-		return fmt.Errorf("parse response: %w", err)
-	}
+	fd, isTerm := term.GetFdInfo(c.out)
+	return jsonmessage.DisplayJSONMessagesStream(resp.Body, c.out, fd, isTerm, nil)
+}
 
-	_, _ = fmt.Fprintf(c.out, "%s\n", result.Message)
-	if len(result.Tags) > 0 {
-		_, _ = fmt.Fprintf(c.out, "Available tags: %s\n", strings.Join(result.Tags, ", "))
-	}
-
-	return nil
+// ensureImage makes sure the image an operation needs is present locally,
+// pulling it with streamed progress only when missing (a cached image is reused
+// without a network round-trip). version/image mirror the command's flags; the
+// daemon resolves the concrete image name.
+func (c *Client) ensureImage(ctx context.Context, version, image string) error {
+	return c.streamProgress(ctx, "POST", "/api/pull", map[string]any{
+		"version":   version,
+		"image":     image,
+		"ifMissing": true,
+	})
 }
 
 // requireInstanceName is a helper that shows help and returns an error if no instance name is provided
@@ -103,6 +144,12 @@ func (c *Client) createAction(ctx context.Context, cmd *cli.Command) error {
 	// Use default parameter group if not specified
 	if parameterGroup == "" {
 		parameterGroup = parameters.DefaultParameterGroup
+	}
+
+	// Auto-provision the image (pull only if missing, with live progress) so
+	// create works without a separate 'oddk pull' first.
+	if err := c.ensureImage(ctx, version, image); err != nil {
+		return err
 	}
 
 	req := map[string]any{
@@ -840,6 +887,12 @@ func (c *Client) switchAction(ctx context.Context, cmd *cli.Command) error {
 	image := cmd.String("image")
 	version := cmd.String("version")
 
+	// Auto-provision the target image (pull only if missing, with live
+	// progress) so switch works without a separate 'oddk pull' first.
+	if err := c.ensureImage(ctx, version, image); err != nil {
+		return err
+	}
+
 	reqBody := map[string]string{
 		"image":   image,
 		"version": version,
@@ -868,6 +921,18 @@ func (c *Client) switchAction(ctx context.Context, cmd *cli.Command) error {
 	_, _ = fmt.Fprintf(c.out, "Status: %s\n", instance.Status)
 
 	return nil
+}
+
+func (c *Client) updateAction(ctx context.Context, cmd *cli.Command) error {
+	instanceName, err := requireInstanceName(cmd)
+	if err != nil {
+		return err
+	}
+
+	// image is optional: empty means "re-pull the instance's current tag".
+	body := map[string]string{"image": cmd.String("image")}
+
+	return c.streamProgress(ctx, "POST", "/api/rdbms/"+instanceName+"/update", body)
 }
 
 func (c *Client) majorUpgradeAction(ctx context.Context, cmd *cli.Command) error {

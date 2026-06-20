@@ -388,6 +388,18 @@ func instanceCommands(client *Client) *cli.Command {
 				Action: client.switchAction,
 			},
 			{
+				Name:      "update",
+				Usage:     "Re-pull the instance's image tag and recreate it if a newer patch is available (same major; brief downtime)",
+				ArgsUsage: "<instance-name>",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "image",
+						Usage: "Override image to pull and switch to (same major; default: the instance's current image)",
+					},
+				},
+				Action: client.updateAction,
+			},
+			{
 				Name:      "major-upgrade",
 				Usage:     "Upgrade an instance to a newer PostgreSQL major version (dump/restore; causes downtime)",
 				ArgsUsage: "<instance-name>",

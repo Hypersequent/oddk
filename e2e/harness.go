@@ -16,6 +16,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"github.com/jackc/pgx/v5"
@@ -475,6 +476,34 @@ func (h *TestHarness) pullImageWithImageFlagCLI(image string) (string, error) {
 // switchInstanceCLI switches an instance to a different Docker image via CLI
 func (h *TestHarness) switchInstanceCLI(instanceName, image string) (string, error) {
 	return h.runCLI("instance", "switch", instanceName, "--image", image)
+}
+
+// createInstanceWithImageCLI creates an instance from an explicit image + version.
+func (h *TestHarness) createInstanceWithImageCLI(name string, port int, image, version string) (string, error) {
+	return h.runCLI("create", "--name", name, "--port", fmt.Sprintf("%d", port),
+		"--image", image, "--version", version, "--cpu", "1", "--ram", "1024M")
+}
+
+// updateInstanceCLI re-pulls the instance's tag and recreates it if newer.
+func (h *TestHarness) updateInstanceCLI(instanceName string) (string, error) {
+	return h.runCLI("instance", "update", instanceName)
+}
+
+// updateInstanceWithImageCLI runs `instance update` with an explicit override image.
+func (h *TestHarness) updateInstanceWithImageCLI(instanceName, image string) (string, error) {
+	return h.runCLI("instance", "update", instanceName, "--image", image)
+}
+
+// retagImage points a local tag at the same image another tag/name resolves to
+// (docker tag), used to simulate a re-pulled patch (same tag, new image ID).
+func (h *TestHarness) retagImage(source, target string) error {
+	return h.docker.ImageTag(context.Background(), source, target)
+}
+
+// removeImage force-removes a local image (best-effort), used to force a real
+// download path. A missing image is not an error.
+func (h *TestHarness) removeImage(ref string) {
+	_, _ = h.docker.ImageRemove(context.Background(), ref, image.RemoveOptions{Force: true})
 }
 
 // waitForTCP waits for a TCP port to be accessible

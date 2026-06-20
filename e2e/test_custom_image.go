@@ -95,10 +95,12 @@ func testCustomImageSwitch(h *TestHarness) error {
 		return fmt.Errorf("pull postgres:16-alpine failed: %w", err)
 	}
 
-	log.Println("Step 10: Verifying switch to a non-pulled (same-major) image fails")
-	_, err = h.switchInstanceCLI(instanceName, "postgres:16-bookworm")
+	// switch auto-pulls a missing-but-real same-major image, so only a genuinely
+	// nonexistent image fails (the auto-pull can't find it in the registry).
+	log.Println("Step 10: Verifying switch to a nonexistent image fails")
+	_, err = h.switchInstanceCLI(instanceName, "postgres:16-oddk-nonexistent")
 	if err == nil {
-		return fmt.Errorf("switch to non-pulled image should have failed")
+		return fmt.Errorf("switch to nonexistent image should have failed")
 	}
 	if !strings.Contains(err.Error(), "not found") {
 		return fmt.Errorf("error should mention image not found, got: %v", err)

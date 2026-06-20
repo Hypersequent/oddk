@@ -22,6 +22,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.HandleFunc("PUT /api/rdbms/{name}/state", s.withAuth(s.handleUpdateRDBMSState))
 	mux.HandleFunc("PUT /api/rdbms/{name}/config", s.withAuth(s.handleReconfigureRDBMS))
 	mux.HandleFunc("PUT /api/rdbms/{name}/image", s.withAuth(s.handleSwitchRDBMS))
+	mux.HandleFunc("POST /api/rdbms/{name}/update", s.withAuth(s.handleUpdateRDBMS))
 	mux.HandleFunc("POST /api/rdbms/{name}/major-upgrade", s.withAuth(s.handleMajorUpgradeRDBMS))
 
 	// Database management within instances

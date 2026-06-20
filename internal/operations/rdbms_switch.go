@@ -3,9 +3,7 @@ package operations
 import (
 	"context"
 	"fmt"
-	"log"
 
-	"github.com/hypersequent/oddk/internal/crypto"
 	"github.com/hypersequent/oddk/internal/docker"
 	"github.com/hypersequent/oddk/internal/operr"
 )
@@ -51,11 +49,6 @@ func (op *SwitchRDBMSOp) Execute(ctx context.Context) error {
 
 	newImage := op.params.Image
 
-	// Check if anything would change
-	if newImage == instance.Image && newVersion == instance.Version {
-		return operr.Invalidf("instance already uses image %s with version %s", newImage, newVersion)
-	}
-
 	if detectedVersion, ok := docker.DetectPGVersionFromImage(newImage); ok {
 		if detectedVersion != newVersion {
 			return operr.Invalidf("image tag suggests PostgreSQL %s but --version %s was specified", detectedVersion, newVersion)
@@ -81,77 +74,23 @@ func (op *SwitchRDBMSOp) Execute(ctx context.Context) error {
 		return operr.Invalidf("image not found locally. Please run 'oddk pull --image %s' first", newImage)
 	}
 
-	// Decrypt password for container recreation
-	password, err := crypto.DecryptPassword(instance.Password, op.deps.MasterKey)
+	// If neither the recorded tag nor the version is changing, recreating is
+	// only worthwhile when the tag now resolves to a newer local image than the
+	// running container (e.g. a re-pulled patch release). Otherwise there is
+	// genuinely nothing to do. Run 'oddk pull' first, or 'oddk instance update',
+	// to fetch a newer patch for a moving tag.
+	if newImage == instance.Image && newVersion == instance.Version &&
+		!imageDiffersFromContainer(op.deps, newImage, instance.ContainerID) {
+		return operr.Invalidf("instance already uses image %s with version %s, and it is up to date", newImage, newVersion)
+	}
+
+	updated, err := recreateInstanceOnImage(ctx, op.deps, instance, newImage, newVersion)
 	if err != nil {
-		return fmt.Errorf("decrypt password: %w", err)
-	}
-
-	parameterGroup, err := op.deps.Store.Parameters.GetGroup(instance.ParameterGroup)
-	if err != nil {
-		return fmt.Errorf("get parameter group %s: %w", instance.ParameterGroup, err)
-	}
-
-	if err := op.deps.Store.Instances.UpdateStatus(op.params.Name, "switching"); err != nil {
-		log.Printf("Error updating status to switching: %v", err)
-	}
-
-	// Recreate the container with the new image
-	newContainerID, err := op.deps.Docker.RecreateContainer(
-		op.params.Name,
-		newVersion,
-		newImage,
-		instance.Port,
-		password,
-		instance.CPUCores,
-		instance.RAMMB,
-		instance.ParameterGroup,
-		parameterGroup.Parameters,
-		instance.ContainerID,
-	)
-	if err != nil {
-		if statusErr := op.deps.Store.Instances.UpdateStatus(op.params.Name, "error"); statusErr != nil {
-			log.Printf("Error updating status to error: %v", statusErr)
-		}
-		return fmt.Errorf("recreate container: %w", err)
-	}
-
-	if err := op.deps.Store.Instances.UpdateContainerID(op.params.Name, newContainerID); err != nil {
-		log.Printf("Error updating container ID: %v", err)
-	}
-
-	if err := op.deps.Store.Instances.UpdateImage(op.params.Name, newImage, newVersion); err != nil {
-		log.Printf("Error updating image: %v", err)
-	}
-
-	if err := op.deps.Docker.StartContainer(newContainerID); err != nil {
-		if statusErr := op.deps.Store.Instances.UpdateStatus(op.params.Name, "error"); statusErr != nil {
-			log.Printf("Error updating status to error: %v", statusErr)
-		}
-		return fmt.Errorf("start container: %w", err)
-	}
-
-	// Wait for the recreated container to actually accept connections before
-	// reporting "running"; Docker reporting the container as started does not
-	// mean PostgreSQL is ready.
-	if err := waitForPostgresReady(ctx, instance.Port, password); err != nil {
-		if statusErr := op.deps.Store.Instances.UpdateStatus(op.params.Name, "error"); statusErr != nil {
-			log.Printf("Error updating status to error: %v", statusErr)
-		}
-		return fmt.Errorf("wait for PostgreSQL readiness: %w", err)
-	}
-
-	if err := op.deps.Store.Instances.UpdateStatus(op.params.Name, "running"); err != nil {
-		log.Printf("Error updating status to running: %v", err)
-	}
-
-	instance, err = op.deps.Store.Instances.Get(op.params.Name)
-	if err != nil {
-		return fmt.Errorf("get updated instance: %w", err)
+		return err
 	}
 
 	op.result = &SwitchRDBMSResult{
-		Instance: instance,
+		Instance: updated,
 	}
 
 	return nil

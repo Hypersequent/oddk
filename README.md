@@ -14,8 +14,7 @@ upgrade major versions — except it all runs locally against Docker, on hardwar
 you control. Think "a small, self-hosted RDS for Postgres."
 
 ```bash
-oddk pull --version 17
-oddk create --name app --version 17 --port 5432 --cpu 4 --ram 8
+oddk create --name app --version 17 --port 5432 --cpu 4 --ram 8   # pulls the image if needed
 oddk instance get-postgres-password app --conn
 # postgresql://postgres:••••••••@10.88.0.1:5432/postgres
 ```
@@ -162,20 +161,18 @@ eval "$(sudo -u oddk /usr/local/bin/oddk auth mint)"
 After installation the daemon is running and your CLI is configured. From here:
 
 ```bash
-# 1. Pull a PostgreSQL image (required before creating instances)
-oddk pull --version 17
-
-# 2. Create an instance — 4 CPUs, 8 GB RAM, listening on port 5432
+# 1. Create an instance — 4 CPUs, 8 GB RAM, listening on port 5432.
+#    The PostgreSQL image is pulled automatically if it isn't already local.
 oddk create --name app --version 17 --port 5432 --cpu 4 --ram 8
 
-# 3. See what you have
+# 2. See what you have
 oddk list
 
-# 4. Get connection details (password is auto-generated, encrypted at rest)
+# 3. Get connection details (password is auto-generated, encrypted at rest)
 oddk instance get-postgres-password app --conn        # full connection string
 eval "$(oddk instance get-postgres-password app --envs)"  # export PG* env vars
 
-# 5. Open a psql shell
+# 4. Open a psql shell
 oddk instance psql app
 ```
 
@@ -270,22 +267,26 @@ local retention never deletes a backup whose only copy is local.
 ### Custom images (pgvector, postgis, …)
 
 ```bash
-oddk pull --image pgvector/pgvector:pg17-trixie
 oddk create --name vec --version 17 --image pgvector/pgvector:pg17-trixie --port 5436 --cpu 2 --ram 4
 ```
 
-### Switching images & major upgrades
+### Updating, switching & major upgrades
 
 ```bash
-# Same major version (e.g. minor bump or image swap) — fast, reuses the volume
+# Pick up a patch/security release for the instance's current image tag
+oddk instance update app
+
+# Switch to a different image, same major version — fast, reuses the volume
 oddk instance switch app --image pgvector/pgvector:pg17-trixie
 
 # New major version — dump/restore migration (causes downtime; backs up first)
 oddk instance major-upgrade app --target-version 18 --yes
 ```
 
-> Quiesce writes before a major upgrade — changes made after it starts are not
-> migrated. Cross-major `switch` is rejected up front; use `major-upgrade`.
+> `create`, `switch`, and `update` pull the image automatically when needed —
+> `oddk pull` is optional, for pre-warming or CI. Quiesce writes before a major
+> upgrade; changes made after it starts are not migrated. Cross-major `switch` is
+> rejected up front — use `major-upgrade`.
 
 ### Parameter groups (AWS-style tuning)
 

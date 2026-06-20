@@ -2,11 +2,14 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -17,6 +20,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
 
@@ -458,10 +462,50 @@ func (c *Client) CheckImageExists(imageName string) ([]string, bool) {
 	return nil, false
 }
 
-// PullImage pulls a Docker image from the registry
-func (c *Client) PullImage(imageName string) error {
+// GetImageID returns the local image ID (sha256:...) that an image tag/name
+// currently resolves to, if the image is present locally. After re-pulling a
+// moving tag (e.g. postgres:18) this reflects the newest patch, which can be
+// compared against a container's image ID to detect a pending update.
+func (c *Client) GetImageID(imageName string) (string, bool) {
+	images, err := c.cli.ImageList(c.ctx, image.ListOptions{})
+	if err != nil {
+		log.Printf("Error listing images: %v", err)
+		return "", false
+	}
+	for _, img := range images {
+		if slices.Contains(img.RepoTags, imageName) {
+			return img.ID, true
+		}
+	}
+	return "", false
+}
+
+// GetContainerImageID returns the ID (sha256:...) of the image a container was
+// created from. Comparable with GetImageID's result.
+func (c *Client) GetContainerImageID(containerID string) (string, error) {
+	inspect, err := c.cli.ContainerInspect(c.ctx, containerID)
+	if err != nil {
+		return "", fmt.Errorf("inspect container: %w", err)
+	}
+	return inspect.Image, nil
+}
+
+// PullImageProgress pulls a Docker image from the registry, streaming the raw
+// Docker progress JSON (newline-delimited jsonmessage frames) to progress as it
+// arrives so a caller can render live progress. progress may be nil.
+//
+// Unlike a bare io.Copy of the pull stream, this also decodes each frame to
+// detect an embedded pull error (Docker reports failures such as "manifest
+// unknown" inside the stream and still returns a clean EOF), so the returned
+// error reflects the real outcome.
+//
+// If writing to progress fails (e.g. the client disconnected), the pull is NOT
+// aborted: progress writes are dropped and the stream is drained to completion
+// so the image still lands in the local cache. Operations are uninterruptible
+// by client disconnect by design.
+func (c *Client) PullImageProgress(ctx context.Context, imageName string, progress io.Writer) error {
 	log.Printf("Pulling image %s...", imageName)
-	reader, err := c.cli.ImagePull(c.ctx, imageName, image.PullOptions{})
+	reader, err := c.cli.ImagePull(ctx, imageName, image.PullOptions{})
 	if err != nil {
 		return fmt.Errorf("pull image: %w", err)
 	}
@@ -471,11 +515,47 @@ func (c *Client) PullImage(imageName string) error {
 		}
 	}()
 
-	// Read the output to completion
-	_, _ = io.Copy(io.Discard, reader)
+	if progress == nil {
+		progress = io.Discard
+	}
+
+	// Tee the raw frames to the client while decoding them here to surface any
+	// in-stream error. The tolerant writer keeps the pull going if the client
+	// goes away mid-stream.
+	dec := json.NewDecoder(io.TeeReader(reader, &tolerantWriter{w: progress}))
+	for {
+		var msg jsonmessage.JSONMessage
+		if err := dec.Decode(&msg); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return fmt.Errorf("read pull progress: %w", err)
+		}
+		if msg.Error != nil {
+			return fmt.Errorf("pull image: %s", msg.Error.Message)
+		}
+	}
 
 	log.Printf("Successfully pulled image %s", imageName)
 	return nil
+}
+
+// tolerantWriter forwards writes to w until the first write error, after which
+// it silently discards subsequent writes. It never returns an error, so a
+// TeeReader feeding it keeps reading even after the destination (e.g. an HTTP
+// client) goes away.
+type tolerantWriter struct {
+	w      io.Writer
+	failed bool
+}
+
+func (t *tolerantWriter) Write(p []byte) (int, error) {
+	if !t.failed {
+		if _, err := t.w.Write(p); err != nil {
+			t.failed = true
+		}
+	}
+	return len(p), nil
 }
 
 func (c *Client) GetContainerStatus(containerID string) (string, error) {

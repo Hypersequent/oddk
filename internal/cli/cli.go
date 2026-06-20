@@ -25,13 +25,16 @@ type Client struct {
 }
 
 func Run(args, env []string, out io.Writer) error {
-	// daemon and the auth subcommands run locally - they talk to the
-	// database/host directly, not the daemon's HTTP API, so they need no client
+	// Some invocations never reach the daemon's HTTP API and so need no client
 	// or auth token. Build the full app with an empty client and skip NewClient
-	// entirely. This matters for `auth mint` in particular: its stdout is eval'd
-	// by the caller (eval "$(sudo -u oddk oddk auth mint)"), so NewClient's "no
-	// token found" message must never reach stdout and corrupt the emitted shell.
-	if len(args) > 1 && (args[1] == "daemon" || args[1] == "auth") {
+	// entirely for them, so its "no token found" nudge never fires:
+	//   - daemon / auth subcommands run locally, talking to the database/host
+	//     directly. This matters for `auth mint` in particular: its stdout is
+	//     eval'd by the caller (eval "$(sudo -u oddk oddk auth mint)"), so the
+	//     nudge must never reach stdout and corrupt the emitted shell.
+	//   - --version/--help (and a bare `oddk`) are purely informational; a
+	//     missing token is irrelevant to them and the nudge is just noise.
+	if localOnlyInvocation(args) {
 		app := BuildApp(&Client{out: out})
 		app.Writer = out
 		return app.Run(context.Background(), args)
@@ -56,6 +59,24 @@ func Run(args, env []string, out io.Writer) error {
 
 func Execute() error {
 	return Run(os.Args, os.Environ(), os.Stdout)
+}
+
+// localOnlyInvocation reports whether the given argv targets a command that
+// runs without contacting the daemon, so NewClient (and its missing-token
+// nudge) can be skipped entirely. This covers the local subcommands plus the
+// top-level version/help flags and a bare `oddk` (which just prints help).
+func localOnlyInvocation(args []string) bool {
+	if len(args) <= 1 {
+		// `oddk` with no arguments prints help.
+		return true
+	}
+	switch args[1] {
+	case "daemon", "auth",
+		"--version", "-v",
+		"--help", "-h", "help":
+		return true
+	}
+	return false
 }
 
 func NewClient(env []string, out io.Writer) (*Client, error) {
