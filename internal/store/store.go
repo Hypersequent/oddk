@@ -53,6 +53,16 @@ func NewStore(dbPath, dataDir string) (*Store, error) {
 	sqx.SetMaxOpenConns(1)    // SQLite only supports one writer at a time
 	sqx.SetMaxIdleConns(1)    // Keep one connection alive
 	sqx.SetConnMaxLifetime(0) // Connections never expire
+
+	// Wait out a concurrent writer instead of failing (or MustExec-panicking)
+	// immediately with SQLITE_BUSY: `oddk auth` commands write tokens from a
+	// separate process (see OpenAuthOnly), and the e2e harness restarts the
+	// daemon in-process while the old store connection may still be flushing
+	// a health-check write.
+	if _, err := sqx.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		return nil, fmt.Errorf("set busy_timeout: %w", err)
+	}
+
 	store := Store{
 		Sqlx:          sqx,
 		Auth:          auth.NewAuthStore(sqx),

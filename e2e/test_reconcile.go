@@ -87,6 +87,12 @@ func testStartupReconciliation(h *TestHarness) error {
 	}
 
 	// Instance B: store said "stopped", container is running -> "running".
+	// The out-of-band ContainerStart returns before Postgres accepts
+	// connections; the status query below runs a live connectivity probe, so
+	// wait for readiness or a slow cold start reads as "broken".
+	if err := h.waitForPostgreSQL(portB); err != nil {
+		return fmt.Errorf("wait for PostgreSQL of %s after out-of-band start: %w", instanceB, err)
+	}
 	statusB, err := h.getInstanceStatusCLI(instanceB)
 	if err != nil {
 		return fmt.Errorf("status of %s after restart: %w", instanceB, err)

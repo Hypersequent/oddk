@@ -207,6 +207,11 @@ oddk instance start app
 oddk instance stop app
 oddk instance logs app --follow
 oddk instance destroy app
+
+oddk list             # all instances at a glance
+oddk checklist        # audit overview: health, parameter group, backup cron,
+                      # last good backup (time/size/copies), notification status
+oddk checklist --json # same data as JSON
 ```
 
 Create/start/switch/reconfigure **block until Postgres actually accepts

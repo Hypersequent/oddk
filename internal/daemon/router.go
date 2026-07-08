@@ -10,6 +10,9 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.HandleFunc("GET /api/health/status", s.withAuth(s.handleHealthStatus))
 	mux.HandleFunc("GET /api/health/history", s.withAuth(s.handleHealthHistory))
 
+	// Checklist (audit overview)
+	mux.HandleFunc("GET /api/checklist", s.withAuth(s.handleChecklist))
+
 	// Image management
 	mux.HandleFunc("POST /api/pull", s.withAuth(s.handlePullImage))
 

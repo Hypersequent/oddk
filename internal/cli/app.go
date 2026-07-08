@@ -29,6 +29,7 @@ func BuildApp(client *Client) *cli.Command {
 			pullCommand(client),
 			createCommand(client),
 			listCommand(client),
+			checklistCommand(client),
 			instanceCommands(client),
 			notifyCommands(client),
 			backupCommands(client),
@@ -192,6 +193,20 @@ func listCommand(client *Client) *cli.Command {
 		Name:   "list",
 		Usage:  "List all RDBMS instances",
 		Action: client.listAction,
+	}
+}
+
+func checklistCommand(client *Client) *cli.Command {
+	return &cli.Command{
+		Name:  "checklist",
+		Usage: "Audit overview of all instances: health, parameter groups, backups, notifications",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:  "json",
+				Usage: "Output as JSON",
+			},
+		},
+		Action: client.checklistAction,
 	}
 }
 
