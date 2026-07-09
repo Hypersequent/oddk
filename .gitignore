@@ -1,6 +1,6 @@
 # Binaries
 bin/
-./oddk
+/oddk
 /e2e/e2e
 
 # Database files
