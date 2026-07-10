@@ -3,7 +3,7 @@ package util_test
 import (
 	"testing"
 
-	"github.com/hypersequent/oddk/internal/util"
+	"github.com/andrianbdn/oddk/internal/util"
 )
 
 func TestParseRAMString(t *testing.T) {

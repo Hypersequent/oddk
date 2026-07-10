@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/hypersequent/oddk/internal/operations"
+	"github.com/andrianbdn/oddk/internal/operations"
 )
 
 func (s *Server) handleParameterGroupGet(w http.ResponseWriter, r *http.Request) {

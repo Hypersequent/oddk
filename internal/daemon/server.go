@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/hypersequent/oddk/internal/crypto"
-	"github.com/hypersequent/oddk/internal/docker"
-	"github.com/hypersequent/oddk/internal/operations"
-	"github.com/hypersequent/oddk/internal/services"
-	"github.com/hypersequent/oddk/internal/store"
-	"github.com/hypersequent/oddk/internal/version"
+	"github.com/andrianbdn/oddk/internal/crypto"
+	"github.com/andrianbdn/oddk/internal/docker"
+	"github.com/andrianbdn/oddk/internal/operations"
+	"github.com/andrianbdn/oddk/internal/services"
+	"github.com/andrianbdn/oddk/internal/store"
+	"github.com/andrianbdn/oddk/internal/version"
 )
 
 type Server struct {

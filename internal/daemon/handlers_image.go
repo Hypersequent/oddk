@@ -9,7 +9,7 @@ import (
 
 	"github.com/docker/docker/pkg/jsonmessage"
 
-	"github.com/hypersequent/oddk/internal/operations"
+	"github.com/andrianbdn/oddk/internal/operations"
 )
 
 // Request types for image operations

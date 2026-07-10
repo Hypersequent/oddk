@@ -57,4 +57,4 @@ formatters:
       extra-rules: true
     goimports:
       local-prefixes:
-        - github.com/hypersequent/oddk
+        - github.com/andrianbdn/oddk

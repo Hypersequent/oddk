@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/hypersequent/oddk/internal/operr"
+	"github.com/andrianbdn/oddk/internal/operr"
 )
 
 // GetLogsParams contains parameters for getting instance logs

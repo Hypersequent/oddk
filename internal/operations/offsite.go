@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hypersequent/oddk/internal/crypto"
-	"github.com/hypersequent/oddk/internal/services/s3"
-	"github.com/hypersequent/oddk/internal/store/offsite"
+	"github.com/andrianbdn/oddk/internal/crypto"
+	"github.com/andrianbdn/oddk/internal/services/s3"
+	"github.com/andrianbdn/oddk/internal/store/offsite"
 )
 
 type OffsiteInfoResult struct {

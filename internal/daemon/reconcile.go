@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hypersequent/oddk/internal/docker"
-	"github.com/hypersequent/oddk/internal/store"
+	"github.com/andrianbdn/oddk/internal/docker"
+	"github.com/andrianbdn/oddk/internal/store"
 )
 
 // reconcileInstances aligns each instance's stored status with the actual

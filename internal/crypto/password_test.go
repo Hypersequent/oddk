@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hypersequent/oddk/internal/crypto"
+	"github.com/andrianbdn/oddk/internal/crypto"
 )
 
 func TestPasswordEncryptionDecryption(t *testing.T) {

@@ -3,8 +3,8 @@ package daemon
 import (
 	"log"
 
-	"github.com/hypersequent/oddk/internal/crypto"
-	"github.com/hypersequent/oddk/internal/store"
+	"github.com/andrianbdn/oddk/internal/crypto"
+	"github.com/andrianbdn/oddk/internal/store"
 )
 
 // reencryptLegacySecrets upgrades stored ciphertexts from the legacy

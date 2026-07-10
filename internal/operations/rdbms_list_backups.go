@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hypersequent/oddk/internal/operr"
-	"github.com/hypersequent/oddk/internal/store/backup"
+	"github.com/andrianbdn/oddk/internal/operr"
+	"github.com/andrianbdn/oddk/internal/store/backup"
 )
 
 // ListBackupsParams contains parameters for listing backups

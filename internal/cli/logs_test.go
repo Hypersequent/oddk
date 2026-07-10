@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hypersequent/oddk/internal/cli"
+	"github.com/andrianbdn/oddk/internal/cli"
 )
 
 func TestLogsAction_NoInstanceName(t *testing.T) {

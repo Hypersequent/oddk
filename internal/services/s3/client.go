@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
-	"github.com/hypersequent/oddk/internal/store/offsite"
+	"github.com/andrianbdn/oddk/internal/store/offsite"
 )
 
 type Client struct {

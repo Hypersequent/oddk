@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/hypersequent/oddk/internal/operations"
+	"github.com/andrianbdn/oddk/internal/operations"
 )
 
 func (s *Server) handleOffsiteInfo(w http.ResponseWriter, r *http.Request) {

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/hypersequent/oddk/internal/operations"
+	"github.com/andrianbdn/oddk/internal/operations"
 )
 
 // CronTaskTracker manages sequential execution of cron tasks

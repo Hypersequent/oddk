@@ -11,7 +11,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/hypersequent/oddk/internal/operr"
+	"github.com/andrianbdn/oddk/internal/operr"
 )
 
 // KVStore provides a key-value configuration store with caching

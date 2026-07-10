@@ -9,7 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/hypersequent/oddk/internal/operr"
+	"github.com/andrianbdn/oddk/internal/operr"
 )
 
 // quotePostgresLiteral wraps s in single quotes and doubles any embedded

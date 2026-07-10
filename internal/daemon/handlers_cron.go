@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/hypersequent/oddk/internal/operations"
+	"github.com/andrianbdn/oddk/internal/operations"
 )
 
 type CronPlanRequest struct {

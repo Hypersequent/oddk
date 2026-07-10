@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/hypersequent/oddk/internal/crypto"
-	"github.com/hypersequent/oddk/internal/store/instances"
+	"github.com/andrianbdn/oddk/internal/crypto"
+	"github.com/andrianbdn/oddk/internal/store/instances"
 )
 
 // recreateInstanceOnImage stops and recreates the instance's container on

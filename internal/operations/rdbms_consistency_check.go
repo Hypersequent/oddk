@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hypersequent/oddk/internal/store/instances"
+	"github.com/andrianbdn/oddk/internal/store/instances"
 )
 
 // ConsistencyStatus represents the health status of an RDBMS instance

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hypersequent/oddk/internal/crypto"
-	"github.com/hypersequent/oddk/internal/operr"
+	"github.com/andrianbdn/oddk/internal/crypto"
+	"github.com/andrianbdn/oddk/internal/operr"
 )
 
 // SetPasswordOp is an operation to set a new password for an instance

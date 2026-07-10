@@ -1,6 +1,6 @@
 package instances
 
-import "github.com/hypersequent/oddk/internal/rfc3339time"
+import "github.com/andrianbdn/oddk/internal/rfc3339time"
 
 type RDBMSInstance struct {
 	ID             int              `db:"id" json:"id,omitempty"`

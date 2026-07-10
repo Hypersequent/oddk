@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/hypersequent/oddk/internal/operr"
+	"github.com/andrianbdn/oddk/internal/operr"
 )
 
 // UpdateStateOp updates the state of an RDBMS instance

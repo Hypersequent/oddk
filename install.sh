@@ -3,8 +3,8 @@
 # POSIX compliant; downloads release binaries from GitHub.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/Hypersequent/oddk/main/install.sh | sh
-#   curl -fsSL https://raw.githubusercontent.com/Hypersequent/oddk/main/install.sh | sh -s -- --version v0.1.31
+#   curl -fsSL https://raw.githubusercontent.com/andrianbdn/oddk/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/andrianbdn/oddk/main/install.sh | sh -s -- --version v0.1.31
 #
 # Fresh installs use the FHS layout: binary in /usr/local/bin, state in
 # /var/lib/oddk. An existing installation is updated in place, wherever it
@@ -13,7 +13,7 @@
 
 set -eu
 
-REPO="Hypersequent/oddk"
+REPO="andrianbdn/oddk"
 SERVICE="oddk"
 SUMS_FILE="SHA256SUMS"
 # ASSET / ARCHIVE_BINARY are set from the host architecture in pre-flight checks.

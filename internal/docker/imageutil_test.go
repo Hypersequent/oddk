@@ -3,7 +3,7 @@ package docker_test
 import (
 	"testing"
 
-	"github.com/hypersequent/oddk/internal/docker"
+	"github.com/andrianbdn/oddk/internal/docker"
 )
 
 func TestDetectPGVersionFromImage(t *testing.T) {

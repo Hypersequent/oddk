@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
-	"github.com/hypersequent/oddk/internal/rfc3339time"
+	"github.com/andrianbdn/oddk/internal/rfc3339time"
 )
 
 type NotificationType string

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hypersequent/oddk/internal/operr"
+	"github.com/andrianbdn/oddk/internal/operr"
 )
 
 func TestMarkersClassifyWithoutChangingMessage(t *testing.T) {

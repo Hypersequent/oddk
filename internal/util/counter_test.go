@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hypersequent/oddk/internal/util"
+	"github.com/andrianbdn/oddk/internal/util"
 )
 
 func TestCounter(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/hypersequent/oddk/internal/operr"
-	"github.com/hypersequent/oddk/internal/rfc3339time"
+	"github.com/andrianbdn/oddk/internal/operr"
+	"github.com/andrianbdn/oddk/internal/rfc3339time"
 )
 
 type InstanceStore struct {

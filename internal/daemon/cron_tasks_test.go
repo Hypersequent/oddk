@@ -3,7 +3,7 @@ package daemon_test
 import (
 	"testing"
 
-	"github.com/hypersequent/oddk/internal/daemon"
+	"github.com/andrianbdn/oddk/internal/daemon"
 )
 
 func TestCronTaskTracker_Sequential(t *testing.T) {

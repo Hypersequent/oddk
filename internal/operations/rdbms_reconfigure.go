@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/hypersequent/oddk/internal/crypto"
-	"github.com/hypersequent/oddk/internal/operr"
-	"github.com/hypersequent/oddk/internal/store/instances"
+	"github.com/andrianbdn/oddk/internal/crypto"
+	"github.com/andrianbdn/oddk/internal/operr"
+	"github.com/andrianbdn/oddk/internal/store/instances"
 )
 
 // ReconfigureRDBMSParams contains the parameters for reconfiguring an RDBMS instance

@@ -3,9 +3,9 @@ package operations
 import (
 	"log"
 
-	"github.com/hypersequent/oddk/internal/docker"
-	"github.com/hypersequent/oddk/internal/store"
-	"github.com/hypersequent/oddk/internal/store/instances"
+	"github.com/andrianbdn/oddk/internal/docker"
+	"github.com/andrianbdn/oddk/internal/store"
+	"github.com/andrianbdn/oddk/internal/store/instances"
 )
 
 // Dependencies holds all the dependencies needed by operations

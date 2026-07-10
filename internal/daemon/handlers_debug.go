@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/hypersequent/oddk/internal/operations"
-	"github.com/hypersequent/oddk/internal/store/kvstore"
+	"github.com/andrianbdn/oddk/internal/operations"
+	"github.com/andrianbdn/oddk/internal/store/kvstore"
 )
 
 type BackupTimeShiftRequest struct {

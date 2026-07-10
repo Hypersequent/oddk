@@ -1,4 +1,4 @@
-module github.com/hypersequent/oddk
+module github.com/andrianbdn/oddk
 
 go 1.26.3
 

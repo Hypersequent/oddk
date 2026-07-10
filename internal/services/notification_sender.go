@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-pkgz/notify"
 
-	"github.com/hypersequent/oddk/internal/store"
-	"github.com/hypersequent/oddk/internal/store/notifications"
+	"github.com/andrianbdn/oddk/internal/store"
+	"github.com/andrianbdn/oddk/internal/store/notifications"
 )
 
 type NotificationSender struct {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/hypersequent/oddk/internal/store/instances"
+	"github.com/andrianbdn/oddk/internal/store/instances"
 )
 
 // GetRDBMSOp gets a single RDBMS instance

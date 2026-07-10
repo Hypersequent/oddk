@@ -10,7 +10,7 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 
-	"github.com/hypersequent/oddk/internal/compression"
+	"github.com/andrianbdn/oddk/internal/compression"
 )
 
 // writeTarZstd builds a .tar.zst archive at archivePath whose entries are the

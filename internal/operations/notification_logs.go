@@ -3,7 +3,7 @@ package operations
 import (
 	"context"
 
-	"github.com/hypersequent/oddk/internal/store/notifications"
+	"github.com/andrianbdn/oddk/internal/store/notifications"
 )
 
 type NotificationLogsParams struct {

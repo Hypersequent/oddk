@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hypersequent/oddk/internal/crypto"
-	"github.com/hypersequent/oddk/internal/store"
-	"github.com/hypersequent/oddk/internal/store/offsite"
+	"github.com/andrianbdn/oddk/internal/crypto"
+	"github.com/andrianbdn/oddk/internal/store"
+	"github.com/andrianbdn/oddk/internal/store/offsite"
 )
 
 // legacyEncrypt reproduces the pre-0.1.29 stored format:

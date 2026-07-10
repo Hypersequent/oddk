@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/hypersequent/oddk/internal/operations"
-	"github.com/hypersequent/oddk/internal/store/notifications"
+	"github.com/andrianbdn/oddk/internal/operations"
+	"github.com/andrianbdn/oddk/internal/store/notifications"
 )
 
 func (s *Server) handleNotificationAdd(w http.ResponseWriter, r *http.Request) {

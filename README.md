@@ -1,9 +1,9 @@
 # ODDK — Opinionated Database Deployment Kit
 
-<a href="https://github.com/Hypersequent/oddk/releases/latest"><img src="https://img.shields.io/github/v/release/Hypersequent/oddk" /></a>
-<a href="./LICENSE"><img src="https://img.shields.io/github/license/Hypersequent/oddk" /></a>
-<a href="./go.mod"><img src="https://img.shields.io/github/go-mod/go-version/Hypersequent/oddk" /></a>
-[![Go Report Card](https://goreportcard.com/badge/github.com/hypersequent/oddk)](https://goreportcard.com/report/github.com/hypersequent/oddk)
+<a href="https://github.com/andrianbdn/oddk/releases/latest"><img src="https://img.shields.io/github/v/release/andrianbdn/oddk" /></a>
+<a href="./LICENSE"><img src="https://img.shields.io/github/license/andrianbdn/oddk" /></a>
+<a href="./go.mod"><img src="https://img.shields.io/github/go-mod/go-version/andrianbdn/oddk" /></a>
+[![Go Report Card](https://goreportcard.com/badge/github.com/andrianbdn/oddk)](https://goreportcard.com/report/github.com/andrianbdn/oddk)
 
 **Run PostgreSQL on your own Linux box with the ergonomics of a managed service.**
 
@@ -113,13 +113,13 @@ On a Linux server with Docker and systemd, install (or update) the latest
 release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Hypersequent/oddk/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/andrianbdn/oddk/main/install.sh | sh
 ```
 
 Pin a specific version:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Hypersequent/oddk/main/install.sh | sh -s -- --version v0.1.39
+curl -fsSL https://raw.githubusercontent.com/andrianbdn/oddk/main/install.sh | sh -s -- --version v0.1.39
 ```
 
 The installer downloads the release binary from GitHub, verifies it against the

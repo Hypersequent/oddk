@@ -1,6 +1,6 @@
 package cron
 
-import "github.com/hypersequent/oddk/internal/rfc3339time"
+import "github.com/andrianbdn/oddk/internal/rfc3339time"
 
 type CronPlan struct {
 	InstanceName      string           `db:"instance_name" json:"instanceName"`

@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hypersequent/oddk/internal/operations"
-	"github.com/hypersequent/oddk/internal/store/parameters"
-	"github.com/hypersequent/oddk/internal/util"
+	"github.com/andrianbdn/oddk/internal/operations"
+	"github.com/andrianbdn/oddk/internal/store/parameters"
+	"github.com/andrianbdn/oddk/internal/util"
 )
 
 // clearWriteDeadline removes the response write deadline for long-running

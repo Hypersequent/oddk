@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/hypersequent/oddk/internal/store/notifications"
+	"github.com/andrianbdn/oddk/internal/store/notifications"
 )
 
 type NotificationEditParams struct {

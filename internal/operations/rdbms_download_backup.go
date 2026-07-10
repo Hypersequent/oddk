@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	s3service "github.com/hypersequent/oddk/internal/services/s3"
-	"github.com/hypersequent/oddk/internal/store/backup"
+	s3service "github.com/andrianbdn/oddk/internal/services/s3"
+	"github.com/andrianbdn/oddk/internal/store/backup"
 )
 
 // DownloadBackupParams contains parameters for downloading a backup from S3

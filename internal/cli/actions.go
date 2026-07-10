@@ -21,11 +21,11 @@ import (
 	"github.com/moby/term"
 	"github.com/urfave/cli/v3"
 
-	"github.com/hypersequent/oddk/internal/daemon"
-	"github.com/hypersequent/oddk/internal/store"
-	"github.com/hypersequent/oddk/internal/store/auth"
-	"github.com/hypersequent/oddk/internal/store/parameters"
-	"github.com/hypersequent/oddk/internal/util"
+	"github.com/andrianbdn/oddk/internal/daemon"
+	"github.com/andrianbdn/oddk/internal/store"
+	"github.com/andrianbdn/oddk/internal/store/auth"
+	"github.com/andrianbdn/oddk/internal/store/parameters"
+	"github.com/andrianbdn/oddk/internal/util"
 )
 
 // Pull action

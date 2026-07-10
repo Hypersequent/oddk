@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hypersequent/oddk/internal/crypto"
+	"github.com/andrianbdn/oddk/internal/crypto"
 )
 
 func TestGetOrCreateKeyFile_CreatesNewKey(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hypersequent/oddk/internal/docker"
-	"github.com/hypersequent/oddk/internal/operr"
+	"github.com/andrianbdn/oddk/internal/docker"
+	"github.com/andrianbdn/oddk/internal/operr"
 )
 
 // SwitchRDBMSOp switches an existing RDBMS instance to a different Docker image

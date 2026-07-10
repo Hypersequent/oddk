@@ -8,7 +8,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/hypersequent/oddk/internal/rfc3339time"
+	"github.com/andrianbdn/oddk/internal/rfc3339time"
 )
 
 type CronStore struct {

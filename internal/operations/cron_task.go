@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hypersequent/oddk/internal/services/s3"
+	"github.com/andrianbdn/oddk/internal/services/s3"
 )
 
 type CronTaskOp struct {

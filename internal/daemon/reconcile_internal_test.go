@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hypersequent/oddk/internal/rfc3339time"
-	"github.com/hypersequent/oddk/internal/store"
-	"github.com/hypersequent/oddk/internal/store/backup"
+	"github.com/andrianbdn/oddk/internal/rfc3339time"
+	"github.com/andrianbdn/oddk/internal/store"
+	"github.com/andrianbdn/oddk/internal/store/backup"
 )
 
 func TestSweepBackupDir(t *testing.T) {

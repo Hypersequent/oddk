@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/hypersequent/oddk/internal/crypto"
-	"github.com/hypersequent/oddk/internal/docker"
-	"github.com/hypersequent/oddk/internal/operr"
-	"github.com/hypersequent/oddk/internal/util"
+	"github.com/andrianbdn/oddk/internal/crypto"
+	"github.com/andrianbdn/oddk/internal/docker"
+	"github.com/andrianbdn/oddk/internal/operr"
+	"github.com/andrianbdn/oddk/internal/util"
 )
 
 // CreateRDBMSOp creates a new RDBMS instance

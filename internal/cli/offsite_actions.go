@@ -8,7 +8,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/hypersequent/oddk/internal/store/offsite"
+	"github.com/andrianbdn/oddk/internal/store/offsite"
 )
 
 func (c *Client) offsiteInfoAction(ctx context.Context, cmd *cli.Command) error {

@@ -14,10 +14,10 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/load"
 
-	"github.com/hypersequent/oddk/internal/docker"
-	"github.com/hypersequent/oddk/internal/store"
-	"github.com/hypersequent/oddk/internal/store/instances"
-	"github.com/hypersequent/oddk/internal/store/kvstore"
+	"github.com/andrianbdn/oddk/internal/docker"
+	"github.com/andrianbdn/oddk/internal/store"
+	"github.com/andrianbdn/oddk/internal/store/instances"
+	"github.com/andrianbdn/oddk/internal/store/kvstore"
 )
 
 type connectionEntry struct {

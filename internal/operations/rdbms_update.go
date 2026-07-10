@@ -9,8 +9,8 @@ import (
 
 	"github.com/docker/docker/pkg/jsonmessage"
 
-	"github.com/hypersequent/oddk/internal/docker"
-	"github.com/hypersequent/oddk/internal/operr"
+	"github.com/andrianbdn/oddk/internal/docker"
+	"github.com/andrianbdn/oddk/internal/operr"
 )
 
 // UpdateRDBMSOp re-pulls the image for an instance's current tag and recreates

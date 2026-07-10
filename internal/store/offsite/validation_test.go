@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hypersequent/oddk/internal/store/offsite"
+	"github.com/andrianbdn/oddk/internal/store/offsite"
 )
 
 func TestValidateBucketPath(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hypersequent/oddk/internal/cli"
+	"github.com/andrianbdn/oddk/internal/cli"
 )
 
 func main() {

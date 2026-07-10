@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hypersequent/oddk/internal/services"
+	"github.com/andrianbdn/oddk/internal/services"
 )
 
 // HealthScheduler manages the health check scheduling with process mutex

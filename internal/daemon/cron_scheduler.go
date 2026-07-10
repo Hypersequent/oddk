@@ -6,8 +6,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/hypersequent/oddk/internal/store/cron"
-	"github.com/hypersequent/oddk/internal/store/kvstore"
+	"github.com/andrianbdn/oddk/internal/store/cron"
+	"github.com/andrianbdn/oddk/internal/store/kvstore"
 )
 
 // Use a local random generator to avoid global state

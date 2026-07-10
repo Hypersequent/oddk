@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hypersequent/oddk/internal/store/health"
+	"github.com/andrianbdn/oddk/internal/store/health"
 )
 
 func TestHealthRecord_GetTimestamp(t *testing.T) {

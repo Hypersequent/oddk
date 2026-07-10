@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hypersequent/oddk/internal/operr"
-	s3service "github.com/hypersequent/oddk/internal/services/s3"
+	"github.com/andrianbdn/oddk/internal/operr"
+	s3service "github.com/andrianbdn/oddk/internal/services/s3"
 )
 
 type RemoveLocalBackupParams struct {

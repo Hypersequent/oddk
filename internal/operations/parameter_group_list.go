@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hypersequent/oddk/internal/store/parameters"
+	"github.com/andrianbdn/oddk/internal/store/parameters"
 )
 
 type ParameterGroupListParams struct{}

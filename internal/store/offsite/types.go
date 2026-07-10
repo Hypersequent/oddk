@@ -1,7 +1,7 @@
 package offsite
 
 import (
-	"github.com/hypersequent/oddk/internal/rfc3339time"
+	"github.com/andrianbdn/oddk/internal/rfc3339time"
 )
 
 type OffsiteType string

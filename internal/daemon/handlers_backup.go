@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hypersequent/oddk/internal/operations"
+	"github.com/andrianbdn/oddk/internal/operations"
 )
 
 type BackupRequest struct {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hypersequent/oddk/internal/util"
+	"github.com/andrianbdn/oddk/internal/util"
 )
 
 func TestValidateInstanceName(t *testing.T) {

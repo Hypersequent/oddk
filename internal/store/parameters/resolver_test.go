@@ -3,7 +3,7 @@ package parameters_test
 import (
 	"testing"
 
-	"github.com/hypersequent/oddk/internal/store/parameters"
+	"github.com/andrianbdn/oddk/internal/store/parameters"
 )
 
 func TestResolveParameters(t *testing.T) {

@@ -24,7 +24,7 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
 
-	"github.com/hypersequent/oddk/internal/store/parameters"
+	"github.com/andrianbdn/oddk/internal/store/parameters"
 )
 
 type Client struct {

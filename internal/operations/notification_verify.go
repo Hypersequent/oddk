@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hypersequent/oddk/internal/services"
+	"github.com/andrianbdn/oddk/internal/services"
 )
 
 type NotificationTestParams struct{}

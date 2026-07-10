@@ -10,15 +10,15 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "modernc.org/sqlite"
 
-	"github.com/hypersequent/oddk/internal/store/auth"
-	"github.com/hypersequent/oddk/internal/store/backup"
-	"github.com/hypersequent/oddk/internal/store/cron"
-	"github.com/hypersequent/oddk/internal/store/health"
-	"github.com/hypersequent/oddk/internal/store/instances"
-	"github.com/hypersequent/oddk/internal/store/kvstore"
-	"github.com/hypersequent/oddk/internal/store/notifications"
-	"github.com/hypersequent/oddk/internal/store/offsite"
-	"github.com/hypersequent/oddk/internal/store/parameters"
+	"github.com/andrianbdn/oddk/internal/store/auth"
+	"github.com/andrianbdn/oddk/internal/store/backup"
+	"github.com/andrianbdn/oddk/internal/store/cron"
+	"github.com/andrianbdn/oddk/internal/store/health"
+	"github.com/andrianbdn/oddk/internal/store/instances"
+	"github.com/andrianbdn/oddk/internal/store/kvstore"
+	"github.com/andrianbdn/oddk/internal/store/notifications"
+	"github.com/andrianbdn/oddk/internal/store/offsite"
+	"github.com/andrianbdn/oddk/internal/store/parameters"
 )
 
 type AuthToken struct {

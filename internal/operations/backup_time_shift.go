@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hypersequent/oddk/internal/rfc3339time"
+	"github.com/andrianbdn/oddk/internal/rfc3339time"
 )
 
 // BackupTimeShiftOp shifts a backup's timestamp into the past for testing

@@ -24,8 +24,8 @@ import (
 	"github.com/johannesboyne/gofakes3"
 	"github.com/johannesboyne/gofakes3/backend/s3mem"
 
-	"github.com/hypersequent/oddk/internal/cli"
-	"github.com/hypersequent/oddk/internal/daemon"
+	"github.com/andrianbdn/oddk/internal/cli"
+	"github.com/andrianbdn/oddk/internal/daemon"
 )
 
 const (

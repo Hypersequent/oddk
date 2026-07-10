@@ -6,8 +6,8 @@ import (
 	"io"
 	"log"
 
-	"github.com/hypersequent/oddk/internal/docker"
-	"github.com/hypersequent/oddk/internal/operr"
+	"github.com/andrianbdn/oddk/internal/docker"
+	"github.com/andrianbdn/oddk/internal/operr"
 )
 
 // PullImageOp pulls a PostgreSQL image from Docker Hub

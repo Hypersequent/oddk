@@ -3,7 +3,7 @@ package instances
 import (
 	"fmt"
 
-	"github.com/hypersequent/oddk/internal/crypto"
+	"github.com/andrianbdn/oddk/internal/crypto"
 )
 
 // GetDecryptedPassword returns the decrypted password for an instance

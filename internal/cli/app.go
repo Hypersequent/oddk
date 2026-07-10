@@ -11,8 +11,8 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/hypersequent/oddk/internal/store/parameters"
-	"github.com/hypersequent/oddk/internal/version"
+	"github.com/andrianbdn/oddk/internal/store/parameters"
+	"github.com/andrianbdn/oddk/internal/version"
 )
 
 // BuildApp creates the CLI application with all commands and subcommands

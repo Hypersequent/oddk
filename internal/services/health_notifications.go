@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/hypersequent/oddk/internal/store"
-	"github.com/hypersequent/oddk/internal/store/health"
-	"github.com/hypersequent/oddk/internal/store/kvstore"
+	"github.com/andrianbdn/oddk/internal/store"
+	"github.com/andrianbdn/oddk/internal/store/health"
+	"github.com/andrianbdn/oddk/internal/store/kvstore"
 )
 
 // NotificationState represents the current notification state

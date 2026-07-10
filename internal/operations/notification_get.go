@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hypersequent/oddk/internal/store/notifications"
+	"github.com/andrianbdn/oddk/internal/store/notifications"
 )
 
 type NotificationGetParams struct {

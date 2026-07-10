@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/hypersequent/oddk/internal/rfc3339time"
-	s3service "github.com/hypersequent/oddk/internal/services/s3"
-	"github.com/hypersequent/oddk/internal/store/offsite"
+	"github.com/andrianbdn/oddk/internal/rfc3339time"
+	s3service "github.com/andrianbdn/oddk/internal/services/s3"
+	"github.com/andrianbdn/oddk/internal/store/offsite"
 )
 
 // UploadBackupParams contains parameters for uploading a backup to S3

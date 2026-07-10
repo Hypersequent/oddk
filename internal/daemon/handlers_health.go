@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hypersequent/oddk/internal/store/health"
+	"github.com/andrianbdn/oddk/internal/store/health"
 )
 
 // HealthStatus represents the detailed health status response
