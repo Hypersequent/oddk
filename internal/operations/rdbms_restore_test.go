@@ -1,55 +1,37 @@
 package operations
 
 import (
-	"slices"
-	"strings"
+	"reflect"
 	"testing"
 )
 
-func TestBuildPgRestoreCommand(t *testing.T) {
-	t.Run("keeps existing restore behavior without owner", func(t *testing.T) {
-		cmd := buildPgRestoreCommand(5432, "appdb", "")
-		if slices.ContainsFunc(cmd, func(arg string) bool { return strings.HasPrefix(arg, "--role=") }) {
-			t.Fatalf("unexpected restore role in command: %v", cmd)
-		}
-	})
+func TestBuildDatabaseCreateGrantSQL(t *testing.T) {
+	statements, missing := buildDatabaseCreateGrantSQL(
+		`restored"db`,
+		[]string{`app"user`, "missing role", `app"user`},
+		[]string{`app"user`},
+	)
 
-	t.Run("restores objects as explicit owner", func(t *testing.T) {
-		cmd := buildPgRestoreCommand(5432, "appdb", "appuser")
-		if !slices.Contains(cmd, "--role=appuser") {
-			t.Fatalf("expected restore role in command: %v", cmd)
-		}
-	})
+	wantStatements := []string{`GRANT CREATE ON DATABASE "restored""db" TO "app""user"`}
+	if !reflect.DeepEqual(statements, wantStatements) {
+		t.Fatalf("unexpected grants:\n got: %v\nwant: %v", statements, wantStatements)
+	}
+	if !reflect.DeepEqual(missing, []string{"missing role"}) {
+		t.Fatalf("unexpected missing roles: %v", missing)
+	}
 }
 
-func TestBuildRestoreCreateSQLWithOwner(t *testing.T) {
-	t.Run("overrides metadata owner and preserves locale", func(t *testing.T) {
-		dir := t.TempDir()
-		metas := []DatabaseMeta{{
-			Name: "appdb", Owner: "sourceowner", Encoding: "UTF8", Collate: "C", Ctype: "C", LocProvider: "c",
-		}}
-		if err := writeDatabaseMetadata(dir, metas); err != nil {
-			t.Fatalf("write metadata: %v", err)
-		}
+func TestReadDatabaseCreateGranteesSupportsLegacyMetadata(t *testing.T) {
+	dir := t.TempDir()
+	if err := writeDatabaseMetadata(dir, []DatabaseMeta{{Name: "appdb"}}); err != nil {
+		t.Fatalf("write metadata: %v", err)
+	}
 
-		got, err := buildRestoreCreateSQL(dir, "appdb", "appdb_copy", "appuser")
-		if err != nil {
-			t.Fatalf("build restore SQL: %v", err)
-		}
-		want := `CREATE DATABASE "appdb_copy" OWNER = "appuser" TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C'`
-		if got != want {
-			t.Fatalf("unexpected restore SQL:\n got: %s\nwant: %s", got, want)
-		}
-	})
-
-	t.Run("sets owner for legacy archive without metadata", func(t *testing.T) {
-		got, err := buildRestoreCreateSQL(t.TempDir(), "appdb", "appdb_copy", "appuser")
-		if err != nil {
-			t.Fatalf("build restore SQL: %v", err)
-		}
-		want := `CREATE DATABASE "appdb_copy" OWNER = "appuser"`
-		if got != want {
-			t.Fatalf("unexpected restore SQL:\n got: %s\nwant: %s", got, want)
-		}
-	})
+	grantees, err := readDatabaseCreateGrantees(dir, "appdb")
+	if err != nil {
+		t.Fatalf("read CREATE grantees: %v", err)
+	}
+	if grantees != nil {
+		t.Fatalf("expected no grantees for legacy metadata, got: %v", grantees)
+	}
 }

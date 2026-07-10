@@ -386,9 +386,8 @@ func (c *Client) backupRestoreAction(ctx context.Context, cmd *cli.Command) erro
 		return fmt.Errorf("--id and --file are mutually exclusive")
 	}
 
-	// Optional flags
+	// Optional flag
 	restoreAs := cmd.String("restore-as")
-	owner := cmd.String("owner")
 
 	// Build request body
 	body := map[string]any{
@@ -407,9 +406,6 @@ func (c *Client) backupRestoreAction(ctx context.Context, cmd *cli.Command) erro
 	if restoreAs != "" {
 		body["restoreAs"] = restoreAs
 	}
-	if owner != "" {
-		body["owner"] = owner
-	}
 
 	// Make request
 	resp, err := c.request("POST", fmt.Sprintf("/api/rdbms/%s/restore", instanceName), body)
@@ -420,7 +416,6 @@ func (c *Client) backupRestoreAction(ctx context.Context, cmd *cli.Command) erro
 	var result struct {
 		TargetDatabase string `json:"targetDatabase"`
 		SourceBackup   string `json:"sourceBackup"`
-		Owner          string `json:"owner,omitempty"`
 		Message        string `json:"message"`
 	}
 
@@ -431,9 +426,6 @@ func (c *Client) backupRestoreAction(ctx context.Context, cmd *cli.Command) erro
 	_, _ = fmt.Fprintf(c.out, "%s\n", result.Message)
 	_, _ = fmt.Fprintf(c.out, "Target database: %s\n", result.TargetDatabase)
 	_, _ = fmt.Fprintf(c.out, "Source: %s\n", result.SourceBackup)
-	if result.Owner != "" {
-		_, _ = fmt.Fprintf(c.out, "Owner: %s\n", result.Owner)
-	}
 
 	return nil
 }

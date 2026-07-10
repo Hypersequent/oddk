@@ -259,11 +259,14 @@ oddk backup make app --comment "before deploy"
 oddk backup list --instance app
 oddk backup restore --instance app --id 42 --database analytics
 oddk backup restore --instance app --id 42 --database analytics --restore-as analytics_copy
-oddk backup restore --instance app --id 42 --database analytics --owner appuser
 oddk backup restore --instance app --file /path/to/backup.tar.zst --database analytics
 ```
 
-Use `--owner` for application-managed databases that run migrations or create schemas. The role must already exist on the target instance. ODDK creates the restored database with that owner and restores its objects under the same role instead of leaving them owned by `postgres`.
+Backups record roles with database-level `CREATE` access, and restore reapplies
+those grants automatically. A role must already exist on the target instance to
+receive its grant; missing roles are reported and skipped without failing the
+data restore. Older archives without this metadata retain the previous restore
+behavior.
 
 ### Scheduled & offsite backups
 

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -28,7 +29,6 @@ type RestoreRDBMSParams struct {
 	InstanceName string // Target instance to restore to
 	DatabaseName string // Database name inside the backup to restore
 	RestoreAs    string // Optional: restore under a different name
-	Owner        string // Optional: existing role that should own the restored database and objects
 	BackupDir    string // Backup directory for resolving relative paths
 }
 
@@ -36,7 +36,6 @@ type RestoreRDBMSParams struct {
 type RestoreRDBMSResult struct {
 	TargetDatabase string `json:"targetDatabase"`
 	SourceBackup   string `json:"sourceBackup"`
-	Owner          string `json:"owner,omitempty"`
 	Message        string `json:"message"`
 }
 
@@ -92,17 +91,6 @@ func RestoreRDBMS(ctx context.Context, deps *Dependencies, params *RestoreRDBMSP
 	if exists {
 		return nil, operr.Conflictf("database %s already exists on instance %s", targetDB, params.InstanceName)
 	}
-	if params.Owner != "" {
-		var ownerExists bool
-		if err := conn.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = $1)", params.Owner).
-			Scan(&ownerExists); err != nil {
-			return nil, fmt.Errorf("check owner role: %w", err)
-		}
-		if !ownerExists {
-			return nil, operr.Invalidf("owner role %s does not exist on instance %s", params.Owner, params.InstanceName)
-		}
-	}
-
 	// 7. Extract backup to temp directory
 	tempDir, err := os.MkdirTemp(params.BackupDir, ".restore-*")
 	if err != nil {
@@ -125,7 +113,11 @@ func RestoreRDBMS(ctx context.Context, deps *Dependencies, params *RestoreRDBMSP
 	}
 
 	// 9. Create the (empty) target database.
-	createQuery, err := buildRestoreCreateSQL(tempDir, params.DatabaseName, targetDB, params.Owner)
+	createQuery, err := buildRestoreCreateSQL(tempDir, params.DatabaseName, targetDB)
+	if err != nil {
+		return nil, err
+	}
+	createGrantees, err := readDatabaseCreateGrantees(tempDir, params.DatabaseName)
 	if err != nil {
 		return nil, err
 	}
@@ -134,16 +126,33 @@ func RestoreRDBMS(ctx context.Context, deps *Dependencies, params *RestoreRDBMSP
 	}
 
 	// 10. Run pg_restore via ephemeral container
-	if err := runPgRestore(ctx, deps, instance, password, dbDir, targetDB, params.Owner); err != nil {
+	if err := runPgRestore(ctx, deps, instance, password, dbDir, targetDB); err != nil {
 		dropQuery := fmt.Sprintf("DROP DATABASE IF EXISTS %s", pgx.Identifier{targetDB}.Sanitize())
 		_, _ = conn.Exec(ctx, dropQuery)
 		return nil, fmt.Errorf("pg_restore failed: %w", err)
 	}
 
+	// pg_restore intentionally skips ACLs because backup roles may not exist on
+	// the target. Replay the database-level CREATE grants captured separately;
+	// missing roles are reported and skipped, while a real grant failure removes
+	// the new database just like a pg_restore failure does.
+	missingRoles, err := restoreDatabaseCreateGrants(ctx, conn, targetDB, createGrantees)
+	if err != nil {
+		dropQuery := fmt.Sprintf("DROP DATABASE IF EXISTS %s", pgx.Identifier{targetDB}.Sanitize())
+		_, _ = conn.Exec(ctx, dropQuery)
+		return nil, fmt.Errorf("restore database CREATE privileges: %w", err)
+	}
+	if len(missingRoles) > 0 {
+		log.Printf(
+			"WARNING: restore: skipped CREATE grants on database %q for roles absent from the target: %s",
+			targetDB,
+			strings.Join(missingRoles, ", "),
+		)
+	}
+
 	return &RestoreRDBMSResult{
 		TargetDatabase: targetDB,
 		SourceBackup:   sourceDesc,
-		Owner:          params.Owner,
 		Message:        fmt.Sprintf("Successfully restored database %s from %s", targetDB, sourceDesc),
 	}, nil
 }
@@ -205,9 +214,8 @@ func resolveBackupSource(deps *Dependencies, params *RestoreRDBMSParams) (backup
 // backup recorded it (databases.json); older archives without it, and
 // non-libc-locale databases, fall back to a bare create with the cluster
 // defaults.
-func buildRestoreCreateSQL(extractedDir, sourceDBName, targetDB, owner string) (string, error) {
+func buildRestoreCreateSQL(extractedDir, sourceDBName, targetDB string) (string, error) {
 	createQuery := fmt.Sprintf("CREATE DATABASE %s", pgx.Identifier{targetDB}.Sanitize())
-	ownerSet := false
 	metas, found, err := readDatabaseMetadata(extractedDir)
 	if err != nil {
 		return "", fmt.Errorf("read database metadata: %w", err)
@@ -218,21 +226,33 @@ func buildRestoreCreateSQL(extractedDir, sourceDBName, targetDB, owner string) (
 				continue
 			}
 			if m.LocProvider == "c" {
-				if owner != "" {
-					m.Owner = owner
-				}
-				createQuery = buildCreateDatabaseSQL(targetDB, m, owner != "")
-				ownerSet = owner != ""
+				createQuery = buildCreateDatabaseSQL(targetDB, m, false)
 			} else {
 				log.Printf("restore: database %q uses locale provider %q; recreating %q with cluster defaults (locale not preserved)", m.Name, m.LocProvider, targetDB)
 			}
 			break
 		}
 	}
-	if owner != "" && !ownerSet {
-		createQuery += fmt.Sprintf(" OWNER = %s", pgx.Identifier{owner}.Sanitize())
-	}
 	return createQuery, nil
+}
+
+// readDatabaseCreateGrantees returns the source database's recorded CREATE
+// grantees. Older archives and older databases.json files have no such data,
+// in which case restore retains its historical behavior and returns no roles.
+func readDatabaseCreateGrantees(extractedDir, sourceDBName string) ([]string, error) {
+	metas, found, err := readDatabaseMetadata(extractedDir)
+	if err != nil {
+		return nil, fmt.Errorf("read database metadata: %w", err)
+	}
+	if !found {
+		return nil, nil
+	}
+	for _, meta := range metas {
+		if meta.Name == sourceDBName {
+			return meta.CreateGrantees, nil
+		}
+	}
+	return nil, nil
 }
 
 // listDatabasesInBackup returns names of databases available in the extracted backup
@@ -252,15 +272,7 @@ func listDatabasesInBackup(extractedDir string) []string {
 }
 
 // runPgRestore executes pg_restore in an ephemeral container
-func runPgRestore(
-	ctx context.Context,
-	deps *Dependencies,
-	instance *instances.RDBMSInstance,
-	password string,
-	dbDir string,
-	targetDB string,
-	owner string,
-) error {
+func runPgRestore(ctx context.Context, deps *Dependencies, instance *instances.RDBMSInstance, password, dbDir, targetDB string) error {
 	containerName := fmt.Sprintf("oddk-restore-%s-%d", instance.Name, time.Now().Unix())
 
 	uid := os.Getuid()
@@ -278,9 +290,20 @@ func runPgRestore(
 	defer cleanup()
 
 	config := &container.Config{
-		Image:  image,
-		User:   fmt.Sprintf("%d:%d", uid, gid),
-		Cmd:    buildPgRestoreCommand(instance.Port, targetDB, owner),
+		Image: image,
+		User:  fmt.Sprintf("%d:%d", uid, gid),
+		Cmd: []string{
+			"pg_restore",
+			"-Fd",          // Directory format
+			"-d", targetDB, // Target database
+			"-h", "10.88.0.1", // Gateway IP
+			"-p", fmt.Sprintf("%d", instance.Port),
+			"-U", "postgres",
+			"--no-owner",      // Skip ownership
+			"--no-privileges", // Skip privileges
+			"-j", "4",         // Parallel jobs
+			"/backup", // Mount point
+		},
 		Env:    []string{pgPassEnv},
 		Labels: map[string]string{"oddk.helper": "true"},
 	}
@@ -337,24 +360,62 @@ func runPgRestore(
 	return nil
 }
 
-func buildPgRestoreCommand(port int, targetDB, owner string) []string {
-	cmd := []string{
-		"pg_restore",
-		"-Fd",          // Directory format
-		"-d", targetDB, // Target database
-		"-h", "10.88.0.1", // Gateway IP
-		"-p", fmt.Sprintf("%d", port),
-		"-U", "postgres",
-		"--no-owner",      // Ignore ownership recorded in the source archive
-		"--no-privileges", // Skip grants to roles that may not exist on the target
+// restoreDatabaseCreateGrants reapplies captured CREATE privileges to roles
+// present on the target. Missing roles are returned to the caller rather than
+// failing an otherwise successful data restore.
+func restoreDatabaseCreateGrants(
+	ctx context.Context,
+	conn *pgx.Conn,
+	databaseName string,
+	grantees []string,
+) ([]string, error) {
+	if len(grantees) == 0 {
+		return nil, nil
 	}
-	if owner != "" {
-		// Authenticate as postgres, then SET ROLE so restored objects are owned by
-		// the explicitly selected application role rather than postgres.
-		cmd = append(cmd, fmt.Sprintf("--role=%s", owner))
-	}
-	return append(cmd,
-		"-j", "4", // Parallel jobs
-		"/backup", // Mount point
+	rows, err := conn.Query(
+		ctx,
+		"SELECT rolname FROM pg_catalog.pg_roles WHERE rolname = ANY($1) ORDER BY rolname",
+		grantees,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("find target roles: %w", err)
+	}
+	existing, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("read target roles: %w", err)
+	}
+
+	statements, missing := buildDatabaseCreateGrantSQL(databaseName, grantees, existing)
+	for _, grantSQL := range statements {
+		if _, err := conn.Exec(ctx, grantSQL); err != nil {
+			return nil, fmt.Errorf("apply %s: %w", grantSQL, err)
+		}
+	}
+	return missing, nil
+}
+
+func buildDatabaseCreateGrantSQL(databaseName string, grantees, existingRoles []string) ([]string, []string) {
+	existing := make(map[string]struct{}, len(existingRoles))
+	for _, role := range existingRoles {
+		existing[role] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(grantees))
+	statements := make([]string, 0, len(grantees))
+	missing := make([]string, 0)
+	for _, role := range grantees {
+		if _, duplicate := seen[role]; duplicate {
+			continue
+		}
+		seen[role] = struct{}{}
+		if _, ok := existing[role]; ok {
+			statements = append(statements, fmt.Sprintf(
+				"GRANT CREATE ON DATABASE %s TO %s",
+				pgx.Identifier{databaseName}.Sanitize(),
+				pgx.Identifier{role}.Sanitize(),
+			))
+		} else {
+			missing = append(missing, role)
+		}
+	}
+	return statements, missing
 }

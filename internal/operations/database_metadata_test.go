@@ -1,6 +1,7 @@
 package operations
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -57,7 +58,15 @@ func TestBuildCreateDatabaseSQL(t *testing.T) {
 func TestReadDatabaseMetadataRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	want := []DatabaseMeta{
-		{Name: "appdb", Owner: "appowner", Encoding: "UTF8", Collate: "C", Ctype: "C", LocProvider: "c"},
+		{
+			Name:           "appdb",
+			Owner:          "appowner",
+			Encoding:       "UTF8",
+			Collate:        "C",
+			Ctype:          "C",
+			LocProvider:    "c",
+			CreateGrantees: []string{"appowner", "migration_role"},
+		},
 		{Name: "postgres", Owner: "postgres", Encoding: "UTF8", Collate: "en_US.utf8", Ctype: "en_US.utf8", LocProvider: "c"},
 	}
 	if err := writeDatabaseMetadata(dir, want); err != nil {
@@ -73,6 +82,25 @@ func TestReadDatabaseMetadataRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("round-trip mismatch:\n got: %+v\nwant: %+v", got, want)
+	}
+}
+
+func TestReadDatabaseMetadataWithoutCreateGrantees(t *testing.T) {
+	dir := t.TempDir()
+	legacyJSON := `[{"name":"appdb","owner":"appowner","encoding":"UTF8","collate":"C","ctype":"C","locProvider":"c"}]`
+	if err := os.WriteFile(filepath.Join(dir, databaseMetadataFile), []byte(legacyJSON), 0o600); err != nil {
+		t.Fatalf("write legacy metadata: %v", err)
+	}
+
+	metas, found, err := readDatabaseMetadata(dir)
+	if err != nil {
+		t.Fatalf("read legacy metadata: %v", err)
+	}
+	if !found || len(metas) != 1 {
+		t.Fatalf("unexpected legacy metadata result: found=%v metas=%+v", found, metas)
+	}
+	if metas[0].CreateGrantees != nil {
+		t.Fatalf("expected absent createGrantees to decode as nil, got: %v", metas[0].CreateGrantees)
 	}
 }
 

@@ -15,14 +15,12 @@ type RestoreRequest struct {
 	FilePath     string `json:"filePath,omitempty"`
 	DatabaseName string `json:"databaseName"`
 	RestoreAs    string `json:"restoreAs,omitempty"`
-	Owner        string `json:"owner,omitempty"`
 }
 
 // RestoreResponse represents the response from restore
 type RestoreResponse struct {
 	TargetDatabase string `json:"targetDatabase"`
 	SourceBackup   string `json:"sourceBackup"`
-	Owner          string `json:"owner,omitempty"`
 	Message        string `json:"message"`
 }
 
@@ -58,7 +56,6 @@ func (s *Server) handleRDBMSRestore(w http.ResponseWriter, r *http.Request) {
 		InstanceName: name,
 		DatabaseName: req.DatabaseName,
 		RestoreAs:    req.RestoreAs,
-		Owner:        req.Owner,
 		BackupDir:    s.backupDir,
 	}
 
@@ -77,7 +74,6 @@ func (s *Server) handleRDBMSRestore(w http.ResponseWriter, r *http.Request) {
 	response := RestoreResponse{
 		TargetDatabase: restoreResult.TargetDatabase,
 		SourceBackup:   restoreResult.SourceBackup,
-		Owner:          restoreResult.Owner,
 		Message:        restoreResult.Message,
 	}
 

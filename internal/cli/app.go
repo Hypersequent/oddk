@@ -641,10 +641,6 @@ func backupCommands(client *Client) *cli.Command {
 						Name:  "restore-as",
 						Usage: "Restore under a different database name",
 					},
-					&cli.StringFlag{
-						Name:  "owner",
-						Usage: "Existing role that should own the restored database and its objects",
-					},
 				},
 				Action: client.backupRestoreAction,
 			},
