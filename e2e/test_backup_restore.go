@@ -35,10 +35,22 @@ func testBackupRestore(h *TestHarness) error {
 		return fmt.Errorf("PostgreSQL not ready: %w", err)
 	}
 
-	log.Println("Step 2: Creating test database")
-	output, err = h.runCLI("instance", "create-db", instanceName, "--database", "testdb")
+	const restoreOwner = "restoreowner"
+	log.Println("Step 2: Creating test database and owner")
+	output, err = h.createDatabaseWithUserCLI(instanceName, "testdb", restoreOwner)
 	if err != nil {
 		return fmt.Errorf("failed to create database: %w (output: %s)", err, output)
+	}
+	restoreOwnerPassword, err := extractCredentialPassword(output)
+	if err != nil {
+		return fmt.Errorf("extract restore owner password: %w", err)
+	}
+	if err := h.execSQLAsUser(port, "testdb", restoreOwner, restoreOwnerPassword, `
+		CREATE SCHEMA restore_fixture;
+		CREATE TABLE restore_fixture.items (id bigint PRIMARY KEY);
+		INSERT INTO restore_fixture.items VALUES (1);
+	`); err != nil {
+		return fmt.Errorf("create restore fixture: %w", err)
 	}
 
 	log.Println("Step 3: Creating backup")
@@ -77,7 +89,8 @@ func testBackupRestore(h *TestHarness) error {
 		"--instance", instanceName,
 		"--id", strconv.Itoa(backupID),
 		"--database", "testdb",
-		"--restore-as", "testdb_restored")
+		"--restore-as", "testdb_restored",
+		"--owner", restoreOwner)
 	if err != nil {
 		return fmt.Errorf("failed to restore: %w (output: %s)", err, output)
 	}
@@ -86,6 +99,17 @@ func testBackupRestore(h *TestHarness) error {
 	}
 	if !strings.Contains(output, "testdb_restored") {
 		return fmt.Errorf("expected target database name in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Owner: "+restoreOwner) {
+		return fmt.Errorf("expected restore owner in output, got: %s", output)
+	}
+	if err := h.execSQLAsUser(port, "testdb_restored", restoreOwner, restoreOwnerPassword, `
+		CREATE SCHEMA restore_owner_probe;
+		ALTER TABLE restore_fixture.items ADD COLUMN name text;
+		DROP SCHEMA restore_owner_probe;
+		DROP SCHEMA restore_fixture CASCADE;
+	`); err != nil {
+		return fmt.Errorf("restored owner lacks schema or object ownership: %w", err)
 	}
 
 	log.Println("Step 6: Verifying restored database exists")
@@ -106,7 +130,8 @@ func testBackupRestore(h *TestHarness) error {
 		"--instance", instanceName,
 		"--id", strconv.Itoa(backupID),
 		"--database", "testdb",
-		"--restore-as", "testdb_restored")
+		"--restore-as", "testdb_restored",
+		"--owner", restoreOwner)
 	if err == nil {
 		return fmt.Errorf("expected restore to fail for existing database, output: %s", output)
 	}
