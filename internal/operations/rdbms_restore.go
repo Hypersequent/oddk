@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -90,7 +91,6 @@ func RestoreRDBMS(ctx context.Context, deps *Dependencies, params *RestoreRDBMSP
 	if exists {
 		return nil, operr.Conflictf("database %s already exists on instance %s", targetDB, params.InstanceName)
 	}
-
 	// 7. Extract backup to temp directory
 	tempDir, err := os.MkdirTemp(params.BackupDir, ".restore-*")
 	if err != nil {
@@ -117,6 +117,10 @@ func RestoreRDBMS(ctx context.Context, deps *Dependencies, params *RestoreRDBMSP
 	if err != nil {
 		return nil, err
 	}
+	createGrantees, err := readDatabaseCreateGrantees(tempDir, params.DatabaseName)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := conn.Exec(ctx, createQuery); err != nil {
 		return nil, fmt.Errorf("create target database: %w", err)
 	}
@@ -126,6 +130,24 @@ func RestoreRDBMS(ctx context.Context, deps *Dependencies, params *RestoreRDBMSP
 		dropQuery := fmt.Sprintf("DROP DATABASE IF EXISTS %s", pgx.Identifier{targetDB}.Sanitize())
 		_, _ = conn.Exec(ctx, dropQuery)
 		return nil, fmt.Errorf("pg_restore failed: %w", err)
+	}
+
+	// pg_restore intentionally skips ACLs because backup roles may not exist on
+	// the target. Replay the database-level CREATE grants captured separately;
+	// missing roles are reported and skipped, while a real grant failure removes
+	// the new database just like a pg_restore failure does.
+	missingRoles, err := restoreDatabaseCreateGrants(ctx, conn, targetDB, createGrantees)
+	if err != nil {
+		dropQuery := fmt.Sprintf("DROP DATABASE IF EXISTS %s", pgx.Identifier{targetDB}.Sanitize())
+		_, _ = conn.Exec(ctx, dropQuery)
+		return nil, fmt.Errorf("restore database CREATE privileges: %w", err)
+	}
+	if len(missingRoles) > 0 {
+		log.Printf(
+			"WARNING: restore: skipped CREATE grants on database %q for roles absent from the target: %s",
+			targetDB,
+			strings.Join(missingRoles, ", "),
+		)
 	}
 
 	return &RestoreRDBMSResult{
@@ -212,6 +234,25 @@ func buildRestoreCreateSQL(extractedDir, sourceDBName, targetDB string) (string,
 		}
 	}
 	return createQuery, nil
+}
+
+// readDatabaseCreateGrantees returns the source database's recorded CREATE
+// grantees. Older archives and older databases.json files have no such data,
+// in which case restore retains its historical behavior and returns no roles.
+func readDatabaseCreateGrantees(extractedDir, sourceDBName string) ([]string, error) {
+	metas, found, err := readDatabaseMetadata(extractedDir)
+	if err != nil {
+		return nil, fmt.Errorf("read database metadata: %w", err)
+	}
+	if !found {
+		return nil, nil
+	}
+	for _, meta := range metas {
+		if meta.Name == sourceDBName {
+			return meta.CreateGrantees, nil
+		}
+	}
+	return nil, nil
 }
 
 // listDatabasesInBackup returns names of databases available in the extracted backup
@@ -317,4 +358,64 @@ func runPgRestore(ctx context.Context, deps *Dependencies, instance *instances.R
 	}
 
 	return nil
+}
+
+// restoreDatabaseCreateGrants reapplies captured CREATE privileges to roles
+// present on the target. Missing roles are returned to the caller rather than
+// failing an otherwise successful data restore.
+func restoreDatabaseCreateGrants(
+	ctx context.Context,
+	conn *pgx.Conn,
+	databaseName string,
+	grantees []string,
+) ([]string, error) {
+	if len(grantees) == 0 {
+		return nil, nil
+	}
+	rows, err := conn.Query(
+		ctx,
+		"SELECT rolname FROM pg_catalog.pg_roles WHERE rolname = ANY($1) ORDER BY rolname",
+		grantees,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("find target roles: %w", err)
+	}
+	existing, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("read target roles: %w", err)
+	}
+
+	statements, missing := buildDatabaseCreateGrantSQL(databaseName, grantees, existing)
+	for _, grantSQL := range statements {
+		if _, err := conn.Exec(ctx, grantSQL); err != nil {
+			return nil, fmt.Errorf("apply %s: %w", grantSQL, err)
+		}
+	}
+	return missing, nil
+}
+
+func buildDatabaseCreateGrantSQL(databaseName string, grantees, existingRoles []string) ([]string, []string) {
+	existing := make(map[string]struct{}, len(existingRoles))
+	for _, role := range existingRoles {
+		existing[role] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(grantees))
+	statements := make([]string, 0, len(grantees))
+	missing := make([]string, 0)
+	for _, role := range grantees {
+		if _, duplicate := seen[role]; duplicate {
+			continue
+		}
+		seen[role] = struct{}{}
+		if _, ok := existing[role]; ok {
+			statements = append(statements, fmt.Sprintf(
+				"GRANT CREATE ON DATABASE %s TO %s",
+				pgx.Identifier{databaseName}.Sanitize(),
+				pgx.Identifier{role}.Sanitize(),
+			))
+		} else {
+			missing = append(missing, role)
+		}
+	}
+	return statements, missing
 }

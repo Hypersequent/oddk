@@ -262,6 +262,12 @@ oddk backup restore --instance app --id 42 --database analytics --restore-as ana
 oddk backup restore --instance app --file /path/to/backup.tar.zst --database analytics
 ```
 
+Backups record roles with database-level `CREATE` access, and restore reapplies
+those grants automatically. A role must already exist on the target instance to
+receive its grant; missing roles are reported and skipped without failing the
+data restore. Older archives without this metadata retain the previous restore
+behavior.
+
 ### Scheduled & offsite backups
 
 ```bash

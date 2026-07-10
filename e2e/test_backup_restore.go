@@ -35,10 +35,19 @@ func testBackupRestore(h *TestHarness) error {
 		return fmt.Errorf("PostgreSQL not ready: %w", err)
 	}
 
-	log.Println("Step 2: Creating test database")
-	output, err = h.runCLI("instance", "create-db", instanceName, "--database", "testdb")
+	const appUser = "restoreapp"
+	log.Println("Step 2: Creating postgres-owned test database and read-write app user")
+	output, err = h.createDatabaseCLI(instanceName, "testdb")
 	if err != nil {
 		return fmt.Errorf("failed to create database: %w (output: %s)", err, output)
+	}
+	output, err = h.addDatabaseUserCLI(instanceName, appUser, "testdb", false)
+	if err != nil {
+		return fmt.Errorf("failed to create read-write app user: %w (output: %s)", err, output)
+	}
+	appPassword, err := extractCredentialPassword(output)
+	if err != nil {
+		return fmt.Errorf("extract app user password: %w", err)
 	}
 
 	log.Println("Step 3: Creating backup")
@@ -86,6 +95,12 @@ func testBackupRestore(h *TestHarness) error {
 	}
 	if !strings.Contains(output, "testdb_restored") {
 		return fmt.Errorf("expected target database name in output, got: %s", output)
+	}
+	if err := h.execSQLAsUser(port, "testdb_restored", appUser, appPassword, `
+		CREATE SCHEMA restore_create_grant_probe;
+		DROP SCHEMA restore_create_grant_probe;
+	`); err != nil {
+		return fmt.Errorf("restored app user lacks database CREATE privilege: %w", err)
 	}
 
 	log.Println("Step 6: Verifying restored database exists")

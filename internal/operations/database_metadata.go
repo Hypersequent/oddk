@@ -18,19 +18,22 @@ import (
 const databaseMetadataFile = "databases.json"
 
 // DatabaseMeta captures the attributes needed to faithfully recreate a database
-// (its encoding/collation and owner). It is written into the backup archive at
-// backup time and consumed by restore and major-upgrade.
+// (its encoding/collation and owner), plus CREATE privileges that pg_dump does
+// not preserve when restore uses --no-privileges. It is written into the backup
+// archive at backup time and consumed by restore and major-upgrade.
 type DatabaseMeta struct {
-	Name        string `json:"name"`
-	Owner       string `json:"owner"`
-	Encoding    string `json:"encoding"`
-	Collate     string `json:"collate"`
-	Ctype       string `json:"ctype"`
-	LocProvider string `json:"locProvider"` // "c" (libc), "i" (icu), "b" (builtin); "c" assumed pre-PG15
+	Name           string   `json:"name"`
+	Owner          string   `json:"owner"`
+	Encoding       string   `json:"encoding"`
+	Collate        string   `json:"collate"`
+	Ctype          string   `json:"ctype"`
+	LocProvider    string   `json:"locProvider"` // "c" (libc), "i" (icu), "b" (builtin); "c" assumed pre-PG15
+	CreateGrantees []string `json:"createGrantees,omitempty"`
 }
 
 // captureDatabaseMetadata reads metadata (owner, encoding, collation, locale
-// provider) for every non-template database from the live source cluster.
+// provider and database-level CREATE grantees) for every non-template database
+// from the live source cluster.
 func captureDatabaseMetadata(ctx context.Context, deps *Dependencies, instanceName string, major int) ([]DatabaseMeta, error) {
 	conn, err := ConnectToRunningInstance(ctx, deps, instanceName)
 	if err != nil {
@@ -41,18 +44,27 @@ func captureDatabaseMetadata(ctx context.Context, deps *Dependencies, instanceNa
 	// datlocprovider exists only from PostgreSQL 15; older clusters are libc.
 	providerExpr := "'c'::text"
 	if major >= 15 {
-		providerExpr = "datlocprovider::text"
+		providerExpr = "d.datlocprovider::text"
 	}
 	query := fmt.Sprintf(`
-		SELECT datname,
-		       pg_catalog.pg_get_userbyid(datdba),
-		       pg_catalog.pg_encoding_to_char(encoding),
-		       datcollate,
-		       datctype,
-		       %s
-		FROM pg_catalog.pg_database
-		WHERE datistemplate = false
-		ORDER BY datname`, providerExpr)
+		SELECT d.datname,
+		       pg_catalog.pg_get_userbyid(d.datdba),
+		       pg_catalog.pg_encoding_to_char(d.encoding),
+		       d.datcollate,
+		       d.datctype,
+		       %s,
+		       ARRAY(
+		           SELECT DISTINCT r.rolname
+		           FROM pg_catalog.aclexplode(
+		               COALESCE(d.datacl, pg_catalog.acldefault('d', d.datdba))
+		           ) AS acl
+		           JOIN pg_catalog.pg_roles AS r ON r.oid = acl.grantee
+		           WHERE acl.privilege_type = 'CREATE'
+		           ORDER BY r.rolname
+		       )
+		FROM pg_catalog.pg_database AS d
+		WHERE d.datistemplate = false
+		ORDER BY d.datname`, providerExpr)
 
 	rows, err := conn.Query(ctx, query)
 	if err != nil {
@@ -63,7 +75,15 @@ func captureDatabaseMetadata(ctx context.Context, deps *Dependencies, instanceNa
 	var out []DatabaseMeta
 	for rows.Next() {
 		var m DatabaseMeta
-		if err := rows.Scan(&m.Name, &m.Owner, &m.Encoding, &m.Collate, &m.Ctype, &m.LocProvider); err != nil {
+		if err := rows.Scan(
+			&m.Name,
+			&m.Owner,
+			&m.Encoding,
+			&m.Collate,
+			&m.Ctype,
+			&m.LocProvider,
+			&m.CreateGrantees,
+		); err != nil {
 			return nil, fmt.Errorf("scan pg_database row: %w", err)
 		}
 		out = append(out, m)
