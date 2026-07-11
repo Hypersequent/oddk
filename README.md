@@ -209,8 +209,10 @@ oddk instance logs app --follow
 oddk instance destroy app
 
 oddk list             # all instances at a glance
-oddk checklist        # audit overview: health, parameter group, backup cron,
-                      # last good backup (time/size/copies), notification status
+oddk checklist        # audit overview, one detailed block per instance: health,
+                      # parameter group, backup cron, last good backup, and stored
+                      # backups by copy location (local+s3 / s3 / local); plus
+                      # global notification status
 oddk checklist --json # same data as JSON
 ```
 
@@ -262,11 +264,11 @@ oddk backup restore --instance app --id 42 --database analytics --restore-as ana
 oddk backup restore --instance app --file /path/to/backup.tar.zst --database analytics
 ```
 
-Backups record roles with database-level `CREATE` access, and restore reapplies
-those grants automatically. A role must already exist on the target instance to
-receive its grant; missing roles are reported and skipped without failing the
-data restore. Older archives without this metadata retain the previous restore
-behavior.
+Backups record roles with database-level `CREATE` access, and both restore and
+`major-upgrade` reapply those grants automatically. A role must already exist on
+the target instance to receive its grant; missing roles are reported and skipped
+without failing the operation. Older archives without this metadata retain the
+previous behavior.
 
 ### Scheduled & offsite backups
 

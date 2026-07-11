@@ -30,14 +30,27 @@ type ChecklistHealth struct {
 
 // ChecklistInstance is the per-instance audit row.
 type ChecklistInstance struct {
-	Name             string               `json:"name"`
-	Version          string               `json:"version"`
-	Status           string               `json:"status"`
-	Health           string               `json:"health"` // "ok", "failing", "not-checked", "unknown"
-	ParameterGroup   string               `json:"parameterGroup"`
-	BackupCron       *ChecklistBackupCron `json:"backupCron,omitempty"`
-	LastGoodBackup   *ChecklistBackup     `json:"lastGoodBackup,omitempty"`
-	CompletedBackups int                  `json:"completedBackups"`
+	Name             string                `json:"name"`
+	Version          string                `json:"version"`
+	Status           string                `json:"status"`
+	Health           string                `json:"health"` // "ok", "failing", "not-checked", "unknown"
+	ParameterGroup   string                `json:"parameterGroup"`
+	BackupCron       *ChecklistBackupCron  `json:"backupCron,omitempty"`
+	LastGoodBackup   *ChecklistBackup      `json:"lastGoodBackup,omitempty"`
+	CompletedBackups int                   `json:"completedBackups"`
+	BackupCopies     ChecklistBackupCopies `json:"backupCopies"`
+}
+
+// ChecklistBackupCopies breaks the completed backups down by where their copies
+// live. The four buckets are mutually exclusive and sum to CompletedBackups.
+// "None" counts completed records whose local file is gone and that have no
+// remote copy (an orphaned record worth surfacing). A local copy only counts
+// when the archive is actually present on disk (see the FileExists check below).
+type ChecklistBackupCopies struct {
+	Both   int `json:"both"`   // local + s3
+	Remote int `json:"remote"` // s3 only
+	Local  int `json:"local"`  // local only
+	None   int `json:"none"`   // completed record, no copy on disk or s3
 }
 
 // ChecklistBackupCron describes the scheduled daily backup, if any.
@@ -163,12 +176,22 @@ func (op *ChecklistOp) Execute(ctx context.Context) error {
 				continue
 			}
 			row.CompletedBackups++
+			// A recorded local location only counts as a copy if the file is
+			// actually on disk (it may have been deleted outside ODDK while a
+			// remote copy keeps the record alive).
+			hasLocal := b.LocalPath != "" && b.FileExists
+			hasRemote := b.RemotePath != ""
+			switch {
+			case hasLocal && hasRemote:
+				row.BackupCopies.Both++
+			case hasRemote:
+				row.BackupCopies.Remote++
+			case hasLocal:
+				row.BackupCopies.Local++
+			default:
+				row.BackupCopies.None++
+			}
 			if row.LastGoodBackup == nil { // list is ordered timestamp DESC
-				// A recorded local location only counts as a copy if the
-				// file is actually on disk (it may have been deleted
-				// outside ODDK while a remote copy keeps the record alive).
-				hasLocal := b.LocalPath != "" && b.FileExists
-				hasRemote := b.RemotePath != ""
 				location := "none"
 				switch {
 				case hasLocal && hasRemote:

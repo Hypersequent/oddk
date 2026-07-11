@@ -33,7 +33,8 @@ const checklistFixture = `{
 				"sizeBytes": 1288490188,
 				"location": "local+s3"
 			},
-			"completedBackups": 9
+			"completedBackups": 9,
+			"backupCopies": {"both": 7, "remote": 1, "local": 1, "none": 0}
 		},
 		{
 			"name": "staging",
@@ -73,7 +74,7 @@ func newChecklistServer(t *testing.T) (*httptest.Server, []string) {
 	return server, env
 }
 
-func TestChecklistAction_TableOutput(t *testing.T) {
+func TestChecklistAction_BlockOutput(t *testing.T) {
 	server, env := newChecklistServer(t)
 	defer server.Close()
 
@@ -86,17 +87,19 @@ func TestChecklistAction_TableOutput(t *testing.T) {
 	for _, want := range []string{
 		"Overall health: degraded (last check 2026-07-08T11:59:00Z)",
 		"instance staging: connection refused",
-		"my-app",
+		"Instances (2)",
+		"my-app · PostgreSQL 17 · running",
 		"default:2025-08-27",
-		"03:00 UTC",
-		"2026-07-08T03:00:12Z",
-		"1.2GB",
-		"local+s3",
+		"03:00 UTC · keep local 7d, remote 14d",
+		"2026-07-08T03:00:12Z · 1.2GB · local+s3 · #42",
+		"backups stored   9 · 7 local+s3, 1 s3, 1 local",
+		"staging · PostgreSQL 18 · running",
 		"failing",
 		"never",
-		"Notifications: 2 configured (ops-mail [email], ops-slack [slack])",
-		"Last notification event: 2026-07-08T11:59:05Z  ops-slack  success — Health degraded",
-		"Last notification error: none",
+		"Notifications\n",
+		"2 configured: ops-mail [email], ops-slack [slack]",
+		"last event  2026-07-08T11:59:05Z · ops-slack · success — Health degraded",
+		"last error  none",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected output to contain %q, got:\n%s", want, out)

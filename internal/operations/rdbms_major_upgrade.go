@@ -364,7 +364,8 @@ func (op *UpgradeRDBMSOp) restoreIntoCluster(ctx context.Context, plan *upgradeP
 
 		// The fresh cluster already has a "postgres" database; recreate the
 		// others from template0 with their original owner + encoding/collation
-		// so collation behavior is preserved across the upgrade.
+		// so collation behavior is preserved across the upgrade. Database-level
+		// CREATE grants are replayed after the data restore (see below).
 		if db.Name != "postgres" {
 			createSQL := buildCreateDatabaseSQL(db.Name, db, true)
 			if _, err := conn.Exec(ctx, createSQL); err != nil {
@@ -379,6 +380,25 @@ func (op *UpgradeRDBMSOp) restoreIntoCluster(ctx context.Context, plan *upgradeP
 		}
 
 		if db.Name != "postgres" {
+			// pg_restore ran with --no-owner --no-privileges, so database-level
+			// CREATE grants are not carried over. Replay the captured grants for
+			// roles present on the fresh cluster (globals restored the roles just
+			// above), mirroring the backup-restore path — otherwise an app role
+			// that could create schemas before the upgrade silently loses that
+			// right after it. Missing roles are logged and skipped; a genuine
+			// grant failure aborts the upgrade (the pre-upgrade backup remains).
+			missingRoles, grantErr := restoreDatabaseCreateGrants(ctx, conn, db.Name, db.CreateGrantees)
+			if grantErr != nil {
+				op.markError()
+				return 0, fmt.Errorf("restore CREATE grants on database %s: %w; %s", db.Name, grantErr, recoverHint)
+			}
+			if len(missingRoles) > 0 {
+				log.Printf(
+					"WARNING: major-upgrade: skipped CREATE grants on database %q for roles absent from the target: %s",
+					db.Name, strings.Join(missingRoles, ", "),
+				)
+			}
+
 			restored++
 		}
 	}

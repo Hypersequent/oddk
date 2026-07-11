@@ -74,6 +74,15 @@ func testMajorUpgrade(h *TestHarness) error {
 		if _, err := conn.Exec(ctx, "CREATE DATABASE appdb OWNER appowner"); err != nil {
 			return fmt.Errorf("create database: %w", err)
 		}
+		// A non-owner role holding an explicit database-level CREATE grant: the
+		// upgrade must replay this grant (owner CREATE is inherited and would not
+		// prove the replay path).
+		if _, err := conn.Exec(ctx, fmt.Sprintf("CREATE ROLE appcreator LOGIN PASSWORD '%s'", ownerPass)); err != nil {
+			return fmt.Errorf("create appcreator role: %w", err)
+		}
+		if _, err := conn.Exec(ctx, "GRANT CREATE ON DATABASE appdb TO appcreator"); err != nil {
+			return fmt.Errorf("grant create on appdb: %w", err)
+		}
 		return nil
 	}(); err != nil {
 		return err
@@ -181,6 +190,16 @@ func testMajorUpgrade(h *TestHarness) error {
 		}
 		if dbOwner != "appowner" {
 			return fmt.Errorf("expected database owner appowner, got %q", dbOwner)
+		}
+
+		// The explicit database-level CREATE grant on the non-owner role must
+		// have been replayed during the upgrade.
+		var creatorHasCreate bool
+		if err := conn.QueryRow(ctx, "SELECT has_database_privilege('appcreator', 'appdb', 'CREATE')").Scan(&creatorHasCreate); err != nil {
+			return fmt.Errorf("query appcreator CREATE privilege: %w", err)
+		}
+		if !creatorHasCreate {
+			return fmt.Errorf("appcreator lost CREATE on appdb after upgrade (database grant not replayed)")
 		}
 		return nil
 	}(); err != nil {
