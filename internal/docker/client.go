@@ -116,6 +116,29 @@ func (c *Client) ensureNetwork() error {
 	return nil
 }
 
+// EnsureContainerOnNetwork checks that the container is attached to the
+// oddk-bridge network and connects it if not. Docker refuses to remove or
+// prune a network that has containers attached (running or stopped), so
+// keeping every instance container attached is what protects oddk-bridge
+// from 'docker network prune'. Returns true if a connect was performed.
+func (c *Client) EnsureContainerOnNetwork(containerID string) (bool, error) {
+	inspect, err := c.cli.ContainerInspect(c.ctx, containerID)
+	if err != nil {
+		return false, fmt.Errorf("inspect container: %w", err)
+	}
+
+	if inspect.NetworkSettings != nil {
+		if _, attached := inspect.NetworkSettings.Networks["oddk-bridge"]; attached {
+			return false, nil
+		}
+	}
+
+	if err := c.cli.NetworkConnect(c.ctx, "oddk-bridge", containerID, nil); err != nil {
+		return false, fmt.Errorf("connect container to oddk-bridge: %w", err)
+	}
+	return true, nil
+}
+
 func pgDataMountTarget(version string) string {
 	major, err := strconv.Atoi(strings.Split(version, ".")[0])
 	if err == nil && major >= 18 {

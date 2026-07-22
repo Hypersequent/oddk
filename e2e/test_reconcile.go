@@ -16,6 +16,10 @@ import (
 //     is marked "stopped" (and can be started again),
 //   - an instance recorded "stopped" whose container is actually running is
 //     marked "running",
+//   - a container detached from oddk-bridge out-of-band is re-attached (a
+//     detached container leaves the network with zero endpoints, making it
+//     eligible for 'docker network prune' — which kills 10.88.0.1 for all
+//     instances),
 //   - stale .tmp-*/.pgpass-* artifacts in the backup dir are removed, while
 //     recorded archives and unreferenced user archives survive.
 func testStartupReconciliation(h *TestHarness) error {
@@ -72,9 +76,23 @@ func testStartupReconciliation(h *TestHarness) error {
 	if err := h.docker.ContainerStart(ctx, "oddk-pg-"+instanceB, container.StartOptions{}); err != nil {
 		return fmt.Errorf("start container of %s out-of-band: %w", instanceB, err)
 	}
+	// Simulate a container that ended up off the ODDK network (e.g. recreated
+	// manually during disaster recovery): detach A's container from oddk-bridge.
+	if err := h.docker.NetworkDisconnect(ctx, "oddk-bridge", "oddk-pg-"+instanceA, true); err != nil {
+		return fmt.Errorf("disconnect container of %s from oddk-bridge: %w", instanceA, err)
+	}
 
 	if err := h.restartDaemon(); err != nil {
 		return err
+	}
+
+	// Startup must have re-attached A's container to oddk-bridge.
+	inspectA, err := h.docker.ContainerInspect(ctx, "oddk-pg-"+instanceA)
+	if err != nil {
+		return fmt.Errorf("inspect container of %s after restart: %w", instanceA, err)
+	}
+	if _, attached := inspectA.NetworkSettings.Networks["oddk-bridge"]; !attached {
+		return fmt.Errorf("container of %s should have been re-attached to oddk-bridge on startup", instanceA)
 	}
 
 	// Instance A: store said "running", container is stopped -> "stopped".

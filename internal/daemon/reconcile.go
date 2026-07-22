@@ -18,6 +18,10 @@ import (
 // container; without this pass that goes undetected until health checks fail.
 // "error" is never auto-cleared — by convention only an explicit operation
 // promotes out of it.
+//
+// The pass also re-attaches any existing instance container to oddk-bridge if
+// it isn't attached (see the inline comment for why that matters beyond the
+// single instance).
 func reconcileInstances(st *store.Store, dockerClient *docker.Client) {
 	instances, err := st.Instances.List()
 	if err != nil {
@@ -45,6 +49,22 @@ func reconcileInstances(st *store.Store, dockerClient *docker.Client) {
 		if err != nil {
 			log.Printf("Warning: reconcile: inspect container of instance %s: %v", inst.Name, err)
 			continue
+		}
+
+		// A container recreated outside ODDK (e.g. manual disaster recovery)
+		// can end up on the default bridge only. Besides breaking 10.88.0.1
+		// routing for that instance, it leaves oddk-bridge with zero attached
+		// containers — which makes the network eligible for 'docker network
+		// prune' and takes down every instance at once. Re-attaching here
+		// restores the invariant: Docker never prunes a network that has a
+		// container attached, running or stopped.
+		if containerState != "not found" {
+			connected, err := dockerClient.EnsureContainerOnNetwork(inst.ContainerID)
+			if err != nil {
+				log.Printf("Warning: reconcile: ensure oddk-bridge attachment of instance %s: %v", inst.Name, err)
+			} else if connected {
+				log.Printf("Warning: reconcile: container of instance %s was not attached to oddk-bridge (recreated outside ODDK?) - reconnected it", inst.Name)
+			}
 		}
 
 		switch {
